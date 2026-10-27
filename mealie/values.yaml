@@ -6,6 +6,9 @@ timezone: "UTC"
 
 # Public URL, e.g. https://mealie.example.com. UMKIM fills this from the route.
 externalUrl: ""
+# UMKIM sets this so the app reaches its public host and the portal through
+# Traefik, even when the cluster cannot hairpin to the public address.
+hostAliases: []
 # Forwarded-header trust. The pod is only reachable through the ingress.
 hostIP: "10.244.0.0/16,10.43.0.0/16"
 
@@ -42,7 +45,7 @@ resources:
 bootstrap:
   enabled: true
   image: docker.io/library/alpine:3.20.10
-  adminEmail: "mealie-admin@mealie.local"
+  adminEmail: "changeme@example.com"
   initialPassword: "MyPassword"
   # Empty generates a random password on install (stored in the release Secret).
   adminPassword: ""

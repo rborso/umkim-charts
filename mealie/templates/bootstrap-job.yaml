@@ -47,21 +47,31 @@ spec:
                 jq -e -r '.access_token // empty' "$out" >/dev/null 2>&1
               }
 
+              # Mealie keeps its seeded `changeme@example.com` account even
+              # when DEFAULT_EMAIL is set, so try both account names.
+              login_any() {
+                pass="$1"; out="$2"
+                for email in "${ADMIN_EMAIL}" "changeme@example.com"; do
+                  if login "$email" "$pass" "$out"; then
+                    LOGIN_EMAIL="$email"
+                    return 0
+                  fi
+                done
+                return 1
+              }
+
               # A rerun after the first bootstrap must not fail: the generated
               # admin password is already the current one.
-              if login "${ADMIN_EMAIL}" "${ADMIN_PASSWORD}" /tmp/new-login.json; then
-                echo "admin password already rotated"
+              if login_any "${ADMIN_PASSWORD}" /tmp/new-login.json; then
+                echo "admin password already rotated (${LOGIN_EMAIL})"
                 exit 0
               fi
 
-              EMAIL="${ADMIN_EMAIL}"
-              if ! login "${EMAIL}" "${INITIAL_PASSWORD}" /tmp/initial-login.json; then
-                EMAIL="changeme@example.com"
-                login "${EMAIL}" "${INITIAL_PASSWORD}" /tmp/initial-login.json || {
-                  echo "could not authenticate with the initial Mealie admin" >&2
-                  exit 1
-                }
+              if ! login_any "${INITIAL_PASSWORD}" /tmp/initial-login.json; then
+                echo "could not authenticate with the initial Mealie admin" >&2
+                exit 1
               fi
+              EMAIL="${LOGIN_EMAIL}"
               TOKEN=$(jq -r '.access_token' /tmp/initial-login.json)
               BODY=$(jq -n --arg current "${INITIAL_PASSWORD}" --arg new "${ADMIN_PASSWORD}" \
                 '{currentPassword:$current,newPassword:$new}')
@@ -70,15 +80,11 @@ spec:
                 -d "$BODY") || true
               [ "$code" = 200 ] || { echo "password change failed (HTTP ${code})" >&2; cat /tmp/change.json >&2; exit 1; }
 
-              if ! login "${ADMIN_EMAIL}" "${ADMIN_PASSWORD}" /tmp/new-login.json; then
-                # DEFAULT_EMAIL was not honoured; keep the login email that
-                # worked and rotate the password under that account.
-                login "${EMAIL}" "${ADMIN_PASSWORD}" /tmp/new-login.json || {
-                  echo "admin password verification failed" >&2
-                  exit 1
-                }
-              fi
-              echo "Mealie admin password rotated"
+              login "${EMAIL}" "${ADMIN_PASSWORD}" /tmp/new-login.json || {
+                echo "admin password verification failed" >&2
+                exit 1
+              }
+              echo "Mealie admin password rotated (${EMAIL})"
           env:
             - name: ADMIN_EMAIL
               value: {{ .Values.bootstrap.adminEmail | quote }}

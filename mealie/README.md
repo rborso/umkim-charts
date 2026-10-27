@@ -21,7 +21,7 @@ complete.
 | `externalUrl` | empty | Public URL, normally supplied by the catalog |
 | `persistence.data.storageClass` | cluster default | Mealie data |
 | `postgres.persistence.storageClass` | cluster default | PostgreSQL data |
-| `bootstrap.adminEmail` | `mealie-admin@mealie.local` | Breakglass admin email |
+| `bootstrap.adminEmail` | `changeme@example.com` | Breakglass admin email |
 | `bootstrap.adminPassword` | generated | Breakglass admin password |
 | `oidc.enabled` | false | Enable Authelia OIDC |
 | `oidc.issuerUrl` | empty | Authelia issuer |
