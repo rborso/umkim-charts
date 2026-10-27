@@ -1,0 +1,19 @@
+apiVersion: v2
+name: immich
+description: UMKIM-tailored Immich stack (server, vectorchord Postgres, valkey) with LLDAP/SSO bootstrap
+type: application
+version: 0.1.9
+appVersion: "release"
+
+home: https://github.com/rborso/umkim-thin
+sources:
+  - https://github.com/rborso/umkim-thin
+  - https://github.com/immich-app/immich
+  - https://github.com/tensorchord/VectorChord
+  - https://www.postgresql.org/
+  - https://github.com/valkey-io/valkey
+maintainers:
+  - name: Robert Borso
+    url: https://github.com/rborso
+annotations:
+  artifacthub.io/license: Apache-2.0

@@ -1,0 +1,18 @@
+apiVersion: v2
+name: gitea
+description: UMKIM-tailored Gitea stack (Gitea, Postgres, valkey) with an LLDAP-backed bootstrap
+type: application
+version: 0.1.19
+appVersion: "28.1.0"
+
+home: https://github.com/rborso/umkim-thin
+sources:
+  - https://github.com/rborso/umkim-thin
+  - https://github.com/go-gitea/gitea
+  - https://www.postgresql.org/
+  - https://github.com/valkey-io/valkey
+maintainers:
+  - name: Robert Borso
+    url: https://github.com/rborso
+annotations:
+  artifacthub.io/license: Apache-2.0

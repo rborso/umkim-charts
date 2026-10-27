@@ -1,0 +1,147 @@
+# UMKIM-tailored Nextcloud stack with Collabora Online.
+#
+# Self-contained: Nextcloud (Apache image) + PostgreSQL + valkey + Collabora
+# Online (CODE). A post-install bootstrap configures trusted domains and the
+# overwrite URL, optionally registers the hub directory (LLDAP) as the LDAP
+# backend, and wires the richdocuments app to Collabora.
+
+# UMKIM app metadata. Read when the catalog is rendered and used to pre-fill the
+# install prompt (not consumed by the chart).
+umkim:
+  # Tenant this app's route defaults to. Every directory is created with a
+  # `default-tenant` group at deploy time (see the UMKIM LLDAP bootstrap), so it
+  # is the one tenant that exists everywhere without an operator declaring one.
+  tenant: default-tenant
+
+namespaceOverride: ""
+
+nextcloud:
+  image: docker.io/library/nextcloud:35.0.1-apache
+  imagePullPolicy: IfNotPresent
+  timezone: "UTC"
+  # Public URL, e.g. https://nextcloud.example.com. UMKIM fills it from the
+  # route host with ${APP_HOST}.
+  externalUrl: ""
+  # Extra trusted domains (the route host is always added).
+  trustedDomains: []
+  # Ranges allowed to set the forwarded headers (the fleet routers).
+  trustedProxies: "10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"
+  persistence:
+    data:
+      size: 20Gi
+      storageClass: ""
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits: { memory: 2Gi }
+
+# Collabora Online (CODE). Disabled leaves plain Nextcloud.
+collabora:
+  enabled: true
+  image: docker.io/collabora/code:26.04.5.1.1
+  imagePullPolicy: IfNotPresent
+  # Public URL the browser loads the editor from, e.g.
+  # https://collabora.example.com. Give Collabora its own UMKIM route and set
+  # this to that host. Empty falls back to the in-cluster Service URL, which
+  # works for document preview but not browser editing.
+  # The server-side WOPI URL (used for discovery) is always the in-cluster
+  # Service, so a router that blocks RFC1918-to-public requests, or forward-auth
+  # on the route, cannot break the server's discovery fetch.
+  publicUrl: ""
+  # Nextcloud URL allowed to use this Collabora (aliasgroup1). Set it to the
+  # public Nextcloud URL when Collabora is routed.
+  aliasGroup: ""
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits: { memory: 2Gi }
+
+postgres:
+  image: docker.io/library/postgres:18.6
+  imagePullPolicy: IfNotPresent
+  database: nextcloud
+  username: nextcloud
+  # Empty generates a random password on install (stored in the release Secret).
+  password: ""
+  persistence:
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+redis:
+  enabled: true
+  image: docker.io/valkey/valkey:9.1.2-alpine
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+# Directory authentication (Nextcloud's user_ldap app against LLDAP).
+auth:
+  ldap:
+    enabled: false
+    host: "lldap.fleet-ingress-auth.svc.cluster.local"
+    port: 3890
+    # unencrypted | ldaps | starttls
+    securityProtocol: "unencrypted"
+    bindDn: "uid=svc-bind,ou=people,dc=example,dc=com"
+    # Inline bind password ...
+    bindPassword: ""
+    # ... or reference an existing Secret in this namespace (preferred).
+    existingSecret: ""
+    existingSecretKey: "LLDAP_LDAP_USER_PASS"
+    baseDn: "ou=people,dc=example,dc=com"
+    # Nextcloud matches all users with a static filter (no placeholder) and the
+    # login with %uid.
+    userFilter: "(&(objectClass=person))"
+    loginFilter: "(&(objectClass=person)(uid=%uid))"
+    # LLDAP exposes uid / cn / mail.
+    usernameAttribute: "uid"
+    displayNameAttribute: "cn"
+    emailAttribute: "mail"
+    # Group for directory admins (optional); LLDAP group by default.
+    adminGroup: ""
+
+# OIDC login (the user_oidc app) against Authelia. LDAP stays enabled for the
+# desktop/mobile clients and existing accounts; the web UI gets a
+# "Login with Authelia" button.
+oidc:
+  enabled: false
+  providerId: "authelia"
+  providerName: "Authelia"
+  clientId: ""
+  clientSecret: ""
+  issuerUrl: ""
+  scopes: "openid email profile"
+  mappingUid: "preferred_username"
+  mappingEmail: "email"
+  mappingDisplayName: "name"
+
+# Post-install bootstrap: trusted domains, LDAP, and Collabora wiring.
+bootstrap:
+  enabled: true
+  # Defaults to nextcloud.image; override to pin a separate bootstrap image.
+  image: ""
+  backoffLimit: 2
+  activeDeadlineSeconds: 1800
+  admin:
+    username: "nc-admin"
+    email: ""
+    # Empty generates a random password on install (release Secret).
+    password: ""
+  hookDeletePolicy: before-hook-creation
+
+# Public route for Nextcloud (UMKIM usually owns the Ingress through a route).
+ingress:
+  enabled: false
+  host: ""
+  className: traefik
+  entrypoint: websecure
+  tls: true
+  certResolver: letsencrypt
+  forwardAuth: false
+  forwardAuthMiddleware: "fleet-ingress-authelia@file"
+  middlewares: []
+
+# Extra /etc/hosts entries for the Nextcloud and Collabora pods.
+hostAliases: []

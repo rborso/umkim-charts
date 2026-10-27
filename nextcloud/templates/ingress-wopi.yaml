@@ -1,0 +1,49 @@
+{{- if and .Values.ingress.enabled .Values.ingress.forwardAuth }}
+{{/*
+Collabora fetches documents and the WOPI settings over these paths, carrying a
+per-file access token rather than a browser session, so they must not be sent
+through Authelia. The paths are longer than the "/" rule in the main Ingress, so
+Traefik prefers this router and everything else stays protected.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-wopi
+  namespace: {{ include "nextcloud.namespace" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: {{ .Values.ingress.entrypoint | default "websecure" }}
+    {{- if .Values.ingress.tls }}
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: {{ .Values.ingress.certResolver | default "letsencrypt" }}
+    {{- end }}
+    traefik.ingress.kubernetes.io/router.priority: "100"
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "traefik" }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # Collabora asks for the file it is loading.
+          - path: /index.php/apps/richdocuments/wopi
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "nextcloud.serverHost" . }}
+                port:
+                  number: 80
+          # And for the WOPI settings it applies to that session.
+          - path: /apps/richdocuments/wopi
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "nextcloud.serverHost" . }}
+                port:
+                  number: 80
+{{- end }}

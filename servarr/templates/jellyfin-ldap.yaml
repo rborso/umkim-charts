@@ -1,0 +1,88 @@
+{{- $jf := .Values.apps.jellyfin }}
+{{- if and $jf.enabled $jf.ldap.enabled }}
+{{- $l := $jf.ldap }}
+{{/* The platform installs the directory details once, as auth.ldap. Prefer
+     explicit jellyfin.ldap values, otherwise derive them, so a cluster's LLDAP
+     host and base DN never have to be duplicated here. dig() keeps this safe
+     when auth is absent (a standalone install). */}}
+{{- $plat := (.Values.auth | default dict).ldap | default dict }}
+{{- $server := $l.server | default ($plat.host | default "") }}
+{{- $port := $l.port | default ($plat.port | default 3890) }}
+{{- $bindUser := $l.bindUser | default ($plat.bindDn | default "") }}
+{{- $baseDn := $l.baseDn | default ($plat.userSearchBase | default "") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-jellyfin-ldap
+  labels:
+    {{- include "servarr.labels" (dict "name" "jellyfin" "root" .) | nindent 4 }}
+data:
+  install-ldap.sh: |
+    #!/bin/sh
+    set -e
+    DATA=/config/data
+    PLUGIN_DIR="$DATA/plugins/LDAP-Auth"
+    CFG_DIR="$DATA/plugins/configurations"
+    mkdir -p "$PLUGIN_DIR" "$CFG_DIR"
+
+    want="{{ $l.pluginVersion }}"
+    have="$(cat "$PLUGIN_DIR/.version" 2>/dev/null || true)"
+    if [ "$have" != "$want" ] || [ ! -f "$PLUGIN_DIR/LDAP-Auth.dll" ]; then
+      echo "==> installing jellyfin-plugin-ldapauth $want"
+      wget -qO /tmp/ldap-auth.zip "{{ $l.pluginUrl }}"
+      rm -f "$PLUGIN_DIR"/*.dll
+      unzip -o /tmp/ldap-auth.zip -d "$PLUGIN_DIR" >/dev/null
+      echo "$want" > "$PLUGIN_DIR/.version"
+    fi
+
+    esc() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+    PW="$(esc "${LLDAP_BIND_PASSWORD}")"
+
+    cat > "$CFG_DIR/LDAP-Auth.xml" <<EOF
+    <?xml version="1.0" encoding="utf-8"?>
+    <PluginConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+      <LdapUsers />
+      <LdapServer>$(esc "{{ $server }}")</LdapServer>
+      <LdapPort>{{ $port }}</LdapPort>
+      <UseSsl>{{ $l.useSsl }}</UseSsl>
+      <UseStartTls>{{ $l.startTls }}</UseStartTls>
+      <SkipSslVerify>false</SkipSslVerify>
+      <LdapBindUser>$(esc "{{ $bindUser }}")</LdapBindUser>
+      <LdapBindPassword>${PW}</LdapBindPassword>
+      <LdapBaseDn>$(esc "{{ $baseDn }}")</LdapBaseDn>
+      <LdapSearchFilter>$(esc "{{ $l.searchFilter }}")</LdapSearchFilter>
+      <LdapAdminBaseDn />
+      <LdapAdminFilter>$(esc "{{ $l.adminFilter }}")</LdapAdminFilter>
+      <EnableLdapAdminFilterMemberUid>false</EnableLdapAdminFilterMemberUid>
+      <LdapSearchAttributes>{{ $l.searchAttributes }}</LdapSearchAttributes>
+      <LdapClientCertPath />
+      <LdapClientKeyPath />
+      <LdapRootCaPath />
+      <CreateUsersFromLdap>{{ $l.createUsers }}</CreateUsersFromLdap>
+      <AllowPassChange>{{ $l.allowPasswordChange }}</AllowPassChange>
+      <LdapUidAttribute>{{ $l.uidAttribute }}</LdapUidAttribute>
+      <LdapUsernameAttribute>{{ $l.usernameAttribute }}</LdapUsernameAttribute>
+      <LdapPasswordAttribute>userPassword</LdapPasswordAttribute>
+      <EnableLdapProfileImageSync>false</EnableLdapProfileImageSync>
+      <LdapProfileImageAttribute>jpegphoto</LdapProfileImageAttribute>
+      <LdapProfileImageFormat>Default</LdapProfileImageFormat>
+      <EnableAllFolders>{{ $l.enableAllFolders }}</EnableAllFolders>
+      <EnabledFolders />
+    </PluginConfiguration>
+    EOF
+
+    chown -R "${PUID:-1000}:${PGID:-1000}" "$DATA/plugins" 2>/dev/null || true
+    echo "==> Jellyfin LDAP-Auth configured ({{ $server }}:{{ $port }})"
+{{- if and (not $l.existingSecret) $l.bindPassword }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-jellyfin-ldap-secret
+  labels:
+    {{- include "servarr.labels" (dict "name" "jellyfin" "root" .) | nindent 4 }}
+type: Opaque
+stringData:
+  {{ $l.existingSecretKey | default "LLDAP_LDAP_USER_PASS" }}: {{ $l.bindPassword | quote }}
+{{- end }}
+{{- end }}

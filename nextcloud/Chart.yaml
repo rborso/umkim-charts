@@ -1,0 +1,19 @@
+apiVersion: v2
+name: nextcloud
+description: UMKIM-tailored Nextcloud stack (Nextcloud, Postgres, valkey, Collabora Online) with an LLDAP-backed bootstrap
+type: application
+version: 0.1.18
+appVersion: "35.0.1"
+
+home: https://github.com/rborso/umkim-thin
+sources:
+  - https://github.com/rborso/umkim-thin
+  - https://github.com/nextcloud/server
+  - https://github.com/CollaboraOnline/online
+  - https://www.postgresql.org/
+  - https://github.com/valkey-io/valkey
+maintainers:
+  - name: Robert Borso
+    url: https://github.com/rborso
+annotations:
+  artifacthub.io/license: Apache-2.0

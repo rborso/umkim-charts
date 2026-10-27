@@ -1,0 +1,43 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ include "nextcloud.namespace" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: {{ .Values.ingress.entrypoint | default "websecure" }}
+    {{- if .Values.ingress.tls }}
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: {{ .Values.ingress.certResolver | default "letsencrypt" }}
+    {{- end }}
+    {{- $mw := list }}
+    {{- if .Values.ingress.forwardAuth }}
+    {{- $mw = append $mw (.Values.ingress.forwardAuthMiddleware | default "fleet-ingress-authelia@file") }}
+    {{- end }}
+    {{- range .Values.ingress.middlewares }}
+    {{- $mw = append $mw . }}
+    {{- end }}
+    {{- if $mw }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ join "," $mw | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "traefik" }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "nextcloud.serverHost" . }}
+                port:
+                  number: 80
+{{- end }}

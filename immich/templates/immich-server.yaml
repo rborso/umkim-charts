@@ -1,0 +1,169 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-data
+  namespace: {{ include "immich.namespace" . }}
+  labels:
+    {{- include "immich.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.immich.persistence.data.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.immich.persistence.data.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "immich.serverHost" . }}
+  namespace: {{ include "immich.namespace" . }}
+  labels:
+    {{- include "immich.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: immich
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: immich
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: server
+      annotations:
+        checksum/umkim-thin-ca: {{ include "immich.caChecksum" . | quote }}
+    spec:
+{{- $hostAliases := include "immich.hostAliases" . -}}
+{{- if trim $hostAliases }}
+      hostAliases:
+        {{- $hostAliases | nindent 8 }}
+{{- end }}
+      {{- if .Values.bootstrap.oauth.enabled }}
+      initContainers:
+        - name: ca-bundle
+          image: {{ .Values.immich.serverImage | quote }}
+          imagePullPolicy: {{ .Values.immich.imagePullPolicy }}
+          command: ["/bin/sh", "-ec", "if [ -f /etc/ssl/umkim-thin/ca.crt ]; then cat /etc/ssl/certs/ca-certificates.crt /etc/ssl/umkim-thin/ca.crt > /etc/ssl/combined/ca.crt; else cp /etc/ssl/certs/ca-certificates.crt /etc/ssl/combined/ca.crt; fi"]
+          volumeMounts:
+            - name: umkim-thin-ca
+              mountPath: /etc/ssl/umkim-thin
+              readOnly: true
+            - name: combined-ca
+              mountPath: /etc/ssl/combined
+      {{- end }}
+      containers:
+        - name: immich-server
+          image: {{ .Values.immich.serverImage | quote }}
+          imagePullPolicy: {{ .Values.immich.imagePullPolicy }}
+          env:
+            - name: TZ
+              value: {{ .Values.immich.timezone | quote }}
+            - name: DB_HOSTNAME
+              value: {{ .Release.Name }}-postgres
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USERNAME
+              value: {{ .Values.postgres.username | quote }}
+            - name: DB_DATABASE_NAME
+              value: {{ .Values.postgres.database | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "immich.secretName" . }}
+                  key: postgres-password
+            - name: REDIS_HOSTNAME
+              value: {{ .Release.Name }}-redis
+            - name: REDIS_PORT
+              value: "6379"
+            - name: IMMICH_MACHINE_LEARNING_ENABLED
+              value: {{ .Values.immich.machineLearning.enabled | quote }}
+            {{- if .Values.immich.machineLearning.enabled }}
+            - name: IMMICH_MACHINE_LEARNING_URL
+              value: http://{{ .Release.Name }}-ml:3003
+            {{- end }}
+            - name: IMMICH_MEDIA_LOCATION
+              value: /data
+            - name: IMMICH_ALLOW_SETUP
+              value: "true"
+            {{- if .Values.immich.externalUrl }}
+            - name: IMMICH_EXTERNAL_URL
+              value: {{ .Values.immich.externalUrl | quote }}
+            {{- end }}
+            {{- if .Values.bootstrap.oauth.enabled }}
+            # Node's TLS client fetches the OIDC discovery document, token and
+            # JWKS from the issuer. Use a bundle that always exists: the
+            # image's public roots, plus the platform CA when one is published.
+            - name: NODE_EXTRA_CA_CERTS
+              value: /etc/ssl/combined/ca.crt
+            {{- end }}
+            {{- with .Values.immich.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 2283
+          readinessProbe:
+            httpGet:
+              path: /api/server/ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/server/ping
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if .Values.bootstrap.oauth.enabled }}
+            - name: combined-ca
+              mountPath: /etc/ssl/combined
+              readOnly: true
+            {{- end }}
+            {{- with .Values.immich.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.immich.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+        {{- if .Values.bootstrap.oauth.enabled }}
+        - name: umkim-thin-ca
+          configMap:
+            name: umkim-thin-ca
+            optional: true
+        - name: combined-ca
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.immich.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "immich.serverHost" . }}
+  namespace: {{ include "immich.namespace" . }}
+  labels:
+    {{- include "immich.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  selector:
+    app.kubernetes.io/name: immich
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 2283
+      targetPort: http

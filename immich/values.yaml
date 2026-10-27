@@ -1,0 +1,129 @@
+# UMKIM-tailored Immich stack.
+#
+# Self-contained: Immich server + vectorchord Postgres + valkey. The optional
+# machine-learning component is disabled by default (no AI features). A
+# post-install bootstrap creates the local admin, optionally wires SSO (OIDC via
+# Authelia over LLDAP), and disables password login when SSO is enforced.
+
+# UMKIM app metadata. Read when the catalog is rendered and used to pre-fill the
+# install prompt (not consumed by the chart).
+umkim:
+  # Tenant this app's route defaults to. Every directory is created with a
+  # `default-tenant` group at deploy time (see the UMKIM LLDAP bootstrap), so it
+  # is the one tenant that exists everywhere without an operator declaring one.
+  tenant: default-tenant
+  # Recommended Authelia OIDC client.
+  oidc:
+    clientId: immich
+    clientName: Immich
+    redirectPaths:
+      - /auth/login
+      - /user-settings
+    extraRedirectUris:
+      - app.immich:///oauth-callback
+
+namespaceOverride: ""
+
+immich:
+  # Pin to a release tag or digest. "release" tracks the latest stable.
+  serverImage: ghcr.io/immich-app/immich-server:release
+  mlImage: ghcr.io/immich-app/immich-machine-learning:release
+  imagePullPolicy: IfNotPresent
+  # AI/machine-learning is off by default; enabling it deploys the ML component.
+  machineLearning:
+    enabled: false
+  timezone: "UTC"
+  # External URL used for OAuth redirect and links (e.g. https://immich.example.com).
+  externalUrl: ""
+  # Extra env/volumes/mounts, passed through to the server container. OIDC CA
+  # trust is handled by the chart: an init container combines the image roots
+  # with the optional umkim-thin-ca ConfigMap.
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  persistence:
+    data:
+      size: 10Gi
+      storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+postgres:
+  image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+  imagePullPolicy: IfNotPresent
+  database: immich
+  username: immich
+  # Empty generates a random password on install (stored in the release Secret).
+  password: ""
+  persistence:
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+redis:
+  image: docker.io/valkey/valkey:9.1.2
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+# Extra /etc/hosts entries for the server pod. Use to resolve the SSO issuer to
+# the in-cluster ingress so OIDC discovery/token calls stay inside the cluster.
+hostAliases: []
+
+# Public route (UMKIM site ingress). Required for browser SSO redirects.
+ingress:
+  enabled: false
+  host: ""
+  className: traefik
+  entrypoint: websecure
+  tls: true
+  certResolver: letsencrypt
+  # Optional "first line defense": chain the Authelia forward-auth middleware so
+  # the whole app (login page included) is gated behind Authelia before it is
+  # reached. Off by default; Immich's own login/OIDC still applies when on.
+  forwardAuth: false
+  # Middleware name from the fleet-ingress-auth chart.
+  forwardAuthMiddleware: "fleet-ingress-authelia@file"
+  # Extra Traefik middlewares (advanced); chained after forward-auth.
+  middlewares: []
+
+# Post-install bootstrap: local admin, SSO (OIDC) wiring, optional seed.
+bootstrap:
+  enabled: true
+  image: alpine:3.20.10
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  # Local administrator. Empty password generates a random one on install.
+  admin:
+    email: ""
+    name: "Immich Admin"
+    password: ""
+  # SSO via an OIDC provider (Authelia backed by LLDAP). Off by default.
+  oauth:
+    enabled: false
+    issuerUrl: ""
+    clientId: "immich"
+    clientSecret: ""
+    scope: "openid email profile"
+    # Must match the Authelia client token_endpoint_auth_method.
+    tokenEndpointAuthMethod: "client_secret_basic"
+    autoRegister: true
+    autoLaunch: false
+    buttonText: "Sign in with SSO"
+    # Disable local password login once SSO works. Leave false until verified.
+    disablePasswordLogin: false
+  seed: true
+  hookDeletePolicy: before-hook-creation

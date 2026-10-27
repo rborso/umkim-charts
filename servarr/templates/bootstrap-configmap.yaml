@@ -1,0 +1,22 @@
+{{- if .Values.bootstrap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-bootstrap-config
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  DEFAULT_MEDIA_LANGUAGE: {{ .Values.bootstrap.mediaLanguage | default "hu" | quote }}
+  DEFAULT_QUALITY_CUTOFF: {{ .Values.bootstrap.qualityCutoff | default "720p" | quote }}
+  JELLYFIN_LANGUAGE: {{ .Values.bootstrap.mediaLanguage | default "hu" | quote }}
+  {{- /*
+    The bootstrap image enables every component by default, so a component this
+    chart does not ship must be stated as "false" or the bootstrap waits for a
+    Service that never appears. Emit a flag for every component the image knows
+    about, not just the apps listed above.
+  */}}
+  {{- $known := list "sonarr" "radarr" "lidarr" "jellyfin" "seerr" "prowlarr" "qbittorrent" "flaresolverr" }}
+  {{- range $name := (concat (keys .Values.apps) $known | uniq | sortAlpha) }}
+  BOOTSTRAP_ENABLE_{{ $name | upper }}: {{ (dig $name "enabled" false $.Values.apps) | quote }}
+  {{- end }}
+{{- end }}

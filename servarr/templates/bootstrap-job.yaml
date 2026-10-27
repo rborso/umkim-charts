@@ -1,0 +1,114 @@
+{{- if .Values.bootstrap.enabled }}
+{{- $s := .Values.apps -}}
+{{- $ns := .Release.Namespace -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-bootstrap
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: bootstrap
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit | default 2 }}
+  activeDeadlineSeconds: {{ .Values.bootstrap.activeDeadlineSeconds | default 1800 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: bootstrap
+        app.kubernetes.io/name: servarr-bootstrap
+    spec:
+      restartPolicy: Never
+      {{- if .Values.bootstrap.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.bootstrap.nodeSelector | nindent 8 }}
+      {{- end }}
+      # The bootstrap talks to the app APIs only; it never needs the Kubernetes
+      # API or a ServiceAccount.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bootstrap
+          image: {{ .Values.bootstrap.image }}
+          imagePullPolicy: {{ .Values.bootstrap.imagePullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - secretRef:
+                name: {{ .Values.bootstrap.secretName | default (printf "%s-bootstrap" .Release.Name) }}
+                optional: true
+            - configMapRef:
+                name: {{ .Release.Name }}-bootstrap-config
+                optional: true
+          env:
+            - name: QBITTORRENT_URL
+              value: http://qbittorrent.{{ $ns }}.svc.cluster.local:{{ $s.qbittorrent.servicePort | default 80 }}
+            - name: PROWLARR_URL
+              value: http://prowlarr.{{ $ns }}.svc.cluster.local:{{ $s.prowlarr.servicePort | default 80 }}
+            - name: SONARR_URL
+              value: http://sonarr.{{ $ns }}.svc.cluster.local:{{ $s.sonarr.servicePort | default 80 }}
+            - name: RADARR_URL
+              value: http://radarr.{{ $ns }}.svc.cluster.local:{{ $s.radarr.servicePort | default 80 }}
+            - name: JELLYFIN_URL
+              value: http://jellyfin.{{ $ns }}.svc.cluster.local:{{ $s.jellyfin.servicePort | default 80 }}
+            - name: SEERR_URL
+              value: http://seerr.{{ $ns }}.svc.cluster.local:{{ $s.seerr.servicePort | default 80 }}
+            - name: SEERR_AUTO_APPROVE
+              value: {{ .Values.bootstrap.seerrAutoApprove | quote }}
+            - name: JELLYFIN_LIBRARY_SCAN_MINUTES
+              value: {{ .Values.bootstrap.jellyfinLibraryScanMinutes | default 15 | quote }}
+            - name: FLARESOLVERR_URL
+              value: http://flaresolverr.{{ $ns }}.svc.cluster.local:{{ $s.flaresolverr.servicePort | default 80 }}
+            # API keys come from the chart-owned Secret (seeded into each app's
+            # config.xml by its initContainer). The bootstrap no longer mounts the
+            # config volumes, which is what lets them be ReadWriteOnce.
+            - name: PROWLARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-api-keys
+                  key: prowlarr-api-key
+            - name: SONARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-api-keys
+                  key: sonarr-api-key
+            - name: RADARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-api-keys
+                  key: radarr-api-key
+            - name: LIDARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-api-keys
+                  key: lidarr-api-key
+            - name: BOOTSTRAP_ARTIFACTS_DIR
+              value: /tmp/bootstrap-artifacts
+            - name: HOME
+              value: /tmp
+          resources:
+            {{- toYaml (.Values.bootstrap.resources | default (dict "requests" (dict "memory" "512Mi" "cpu" "250m") "limits" (dict "memory" "2Gi" "cpu" "2"))) | nindent 12 }}
+          volumeMounts:
+            - name: artifacts
+              mountPath: /tmp/bootstrap-artifacts
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: artifacts
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

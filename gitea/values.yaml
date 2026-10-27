@@ -1,0 +1,171 @@
+# UMKIM-tailored Gitea stack.
+#
+# Self-contained: Gitea (one binary serves the web UI, the Git HTTP/SSH
+# endpoints, and the background workers) + PostgreSQL + valkey. A post-install
+# bootstrap creates the local admin and (optionally) registers the hub directory
+# (LLDAP) as an LDAP authentication source, so directory users sign in to Gitea
+# with their existing credentials.
+
+# UMKIM app metadata. Read when the catalog is rendered and used to pre-fill the
+# install prompt (not consumed by the chart).
+umkim:
+  # Tenant this app's route defaults to. Every directory is created with a
+  # `default-tenant` group at deploy time (see the UMKIM LLDAP bootstrap), so it
+  # is the one tenant that exists everywhere without an operator declaring one.
+  tenant: default-tenant
+
+namespaceOverride: ""
+
+gitea:
+  image: docker.io/gitea/gitea:28.1.0
+  imagePullPolicy: IfNotPresent
+  timezone: "UTC"
+  # Public URL, e.g. https://gitea.example.com. Used for clone URLs and
+  # redirects; UMKIM fills it from the route host with ${APP_HOST}.
+  externalUrl: ""
+  # Public sign-up off by default: accounts come from the directory or an admin.
+  disableRegistration: true
+  # OAuth2/OIDC users are created on first login (the directory is the source of
+  # truth); the public sign-up form stays disabled.
+  autoRegistration: true
+  # Require a session to browse repositories (including public ones). Accounts
+  # still come from the directory; this only removes anonymous repo browsing.
+  requireSigninView: true
+  # Restrict new accounts until an admin promotes them. Off by default: normal
+  # directory users must be able to create their own repositories.
+  defaultUserIsRestricted: false
+  # Per-user cap for repository creation; 0 disables the limit.
+  maxCreationLimit: 10
+  # Built-in SSH server for `git clone` over SSH.
+  ssh:
+    enabled: true
+    # Container port the SSH server listens on; also the Service port.
+    listenPort: 2222
+    # Port advertised in clone URLs. Empty derives it from the Service: the
+    # NodePort when one is set, else listenPort. Set it when the port clients
+    # reach differs from both — for example behind a UMKIM tcp route, where the
+    # hub listens on forwardPort and the NodePort is an internal detail.
+    advertisedPort: 0
+    # Host advertised in clone URLs; empty falls back to the route host.
+    domain: ""
+    # How the SSH port is published. Git over SSH is not HTTP, so it cannot ride
+    # the fleet route: use NodePort (reachable on the node address) for external
+    # clients, or ClusterIP for in-cluster only.
+    service:
+      type: ClusterIP
+      # Port to allocate when type=NodePort. It is also what Gitea advertises in
+      # clone URLs, so it must match the port clients actually reach.
+      nodePort: 0
+    # Publish the SSH server through a Traefik TCP entry point (the platform's
+    # preferred path: the HA VIP carries the port, unlike a NodePort).
+    traefik:
+      enabled: false
+      entryPoint: gitssh
+  persistence:
+    data:
+      size: 10Gi
+      storageClass: ""
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+
+postgres:
+  image: docker.io/library/postgres:18.6
+  imagePullPolicy: IfNotPresent
+  database: gitea
+  username: gitea
+  # Empty generates a random password on install (stored in the release Secret).
+  password: ""
+  persistence:
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+redis:
+  enabled: true
+  image: docker.io/valkey/valkey:9.1.2-alpine
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+# Directory authentication. Gitea talks LDAP straight to LLDAP, so directory
+# users do not need a second account. Off by default; point it at the cluster's
+# LLDAP (in-cluster service) or the hub LLDAP NodePort.
+auth:
+  ldap:
+    enabled: false
+    name: "lldap"
+    host: "lldap.fleet-ingress-auth.svc.cluster.local"
+    port: 3890
+    # unencrypted | ldaps | starttls
+    securityProtocol: "unencrypted"
+    skipTlsVerify: false
+    bindDn: "uid=svc-bind,ou=people,dc=example,dc=com"
+    # Inline bind password ...
+    bindPassword: ""
+    # ... or reference an existing Secret in this namespace (preferred; create it
+    # from the directory service-account Secret).
+    existingSecret: ""
+    existingSecretKey: "LLDAP_LDAP_USER_PASS"
+    userSearchBase: "ou=people,dc=example,dc=com"
+    userFilter: "(&(objectClass=person)(uid=%s))"
+    adminFilter: ""
+    # LLDAP exposes uid / cn / mail; map the display name to cn and leave the
+    # surname to sn (absent for most directory users, which Gitea tolerates).
+    usernameAttribute: "uid"
+    firstnameAttribute: "cn"
+    surnameAttribute: "sn"
+    emailAttribute: "mail"
+    # LDAP attribute holding the user's SSH public key(s). Gitea syncs them into
+    # the user's keys at login and marks them externally managed (the directory
+    # owns them); keys added in Gitea itself are left untouched. Empty disables
+    # the sync. sshPublicKey is the standard OpenSSH attribute.
+    publicSshKeyAttribute: "sshPublicKey"
+    # Mark keys that come from the directory as verified.
+    sshKeysAreVerified: true
+    allowDeactivateAll: false
+
+  # OIDC login source (Authelia). The chart mounts the platform's CA bundle so
+  # Gitea can fetch the discovery document and JWKS from the portal.
+  oidc:
+    enabled: false
+    name: "authelia"
+    clientId: ""
+    clientSecret: ""
+    issuerUrl: ""
+    discoveryUrl: ""
+    scopes: "openid email profile"
+
+# Post-install bootstrap: create the admin and register the LDAP auth source.
+bootstrap:
+  enabled: true
+  # Defaults to gitea.image; override to pin a separate bootstrap image.
+  image: ""
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  admin:
+    username: "gitea-admin"
+    email: ""
+    # Empty generates a random password on install (release Secret).
+    password: ""
+  hookDeletePolicy: before-hook-creation
+
+# Public route (UMKIM site/hub ingress). The chart creates the Ingress; UMKIM may
+# also own it through a FleetApp route.
+ingress:
+  enabled: false
+  host: ""
+  className: traefik
+  entrypoint: websecure
+  tls: true
+  certResolver: letsencrypt
+  # Optional Authelia "first line defense"; chain the middleware.
+  forwardAuth: false
+  forwardAuthMiddleware: "fleet-ingress-authelia@file"
+  middlewares: []
+
+# Extra /etc/hosts entries for the Gitea pod.
+hostAliases: []

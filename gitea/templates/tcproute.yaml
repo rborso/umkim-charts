@@ -1,0 +1,21 @@
+{{- if and .Values.gitea.ssh.enabled .Values.gitea.ssh.traefik.enabled }}
+# Git over SSH is raw TCP, so it cannot ride the HTTP Ingress. A dedicated
+# Traefik entry point (gitssh) forwards to Gitea's SSH service; the platform
+# exposes that entry point on 2222 (and the HA VIP), and the router forwards the
+# public port there.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: {{ include "gitea.serverHost" . }}-ssh
+  namespace: {{ include "gitea.namespace" . }}
+  labels:
+    {{- include "gitea.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - {{ .Values.gitea.ssh.traefik.entryPoint | default "gitssh" }}
+  routes:
+    - match: HostSNI(`*`)
+      services:
+        - name: {{ include "gitea.serverHost" . }}
+          port: {{ .Values.gitea.ssh.listenPort | default 2222 }}
+{{- end }}

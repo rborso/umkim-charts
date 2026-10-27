@@ -1,0 +1,130 @@
+{{- if .Values.bootstrap.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-bootstrap
+  namespace: {{ include "immich.namespace" . }}
+  labels:
+    {{- include "immich.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bootstrap
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: {{ .Values.bootstrap.hookDeletePolicy }}
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.bootstrap.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: immich
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: bootstrap
+    spec:
+      # Co-locate with the server pod, which holds the shared ReadWriteOnce data
+      # volume (no PV node affinity on backends like Longhorn).
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: immich
+                  app.kubernetes.io/instance: {{ .Release.Name }}
+                  app.kubernetes.io/component: server
+              topologyKey: kubernetes.io/hostname
+      restartPolicy: Never
+      containers:
+        - name: bootstrap
+          image: {{ .Values.bootstrap.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              apk add --no-cache curl jq >/dev/null 2>&1
+              BASE="http://{{ include "immich.serverHost" . }}.{{ include "immich.namespace" . }}.svc.cluster.local:2283"
+              echo "==> waiting for Immich at ${BASE}"
+              ok=""
+              for i in $(seq 1 120); do
+                if curl -fsS "${BASE}/api/server/ping" >/dev/null 2>&1; then ok=1; break; fi
+                sleep 5
+              done
+              [ -n "${ok}" ] || { echo "Immich did not become ready" >&2; exit 1; }
+
+              echo "==> create local admin (idempotent)"
+              code=$(curl -s -o /tmp/signup.json -w '%{http_code}' -X POST \
+                "${BASE}/api/auth/admin-sign-up" -H 'Content-Type: application/json' \
+                -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\",\"name\":\"${ADMIN_NAME}\"}") || true
+              case "${code}" in
+                200|201) echo "admin created" ;;
+                400) echo "admin already present (${code})" ;;
+                *) echo "admin sign-up returned ${code}: $(cat /tmp/signup.json 2>/dev/null)" ;;
+              esac
+
+              echo "==> login"
+              TOKEN="$(curl -fsS -X POST "${BASE}/api/auth/login" -H 'Content-Type: application/json' \
+                -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\"}" | jq -r '.accessToken // empty')"
+              [ -n "${TOKEN}" ] || { echo "login failed" >&2; exit 1; }
+
+              if [ -n "${OAUTH_ISSUER_URL:-}" ]; then
+                echo "==> configure SSO (OIDC via ${OAUTH_ISSUER_URL})"
+                curl -fsS "${BASE}/api/system-config" -H "Authorization: Bearer ${TOKEN}" -o /tmp/cfg.json
+                jq --arg issuer "${OAUTH_ISSUER_URL}" --arg cid "${OAUTH_CLIENT_ID}" \
+                   --arg secret "${OAUTH_CLIENT_SECRET}" --arg scope "${OAUTH_SCOPE}" \
+                   --arg btn "${OAUTH_BUTTON_TEXT}" --arg method "${OAUTH_TOKEN_AUTH_METHOD}" \
+                   --argjson auto "${OAUTH_AUTO_REGISTER}" --argjson launch "${OAUTH_AUTO_LAUNCH}" \
+                   '.oauth.enabled=true
+                    | .oauth.issuerUrl=$issuer
+                    | .oauth.clientId=$cid
+                    | .oauth.clientSecret=$secret
+                    | .oauth.scope=$scope
+                    | .oauth.buttonText=$btn
+                    | .oauth.tokenEndpointAuthMethod=$method
+                    | .oauth.autoRegister=$auto
+                    | .oauth.autoLaunch=$launch' \
+                   /tmp/cfg.json > /tmp/cfg2.json
+                curl -fsS -X PUT "${BASE}/api/system-config" -H "Authorization: Bearer ${TOKEN}" \
+                  -H 'Content-Type: application/json' -d @/tmp/cfg2.json >/dev/null
+                echo "SSO configured"
+              fi
+
+              if [ "${DISABLE_PASSWORD_LOGIN:-false}" = "true" ]; then
+                echo "==> disable local password login"
+                curl -fsS "${BASE}/api/system-config" -H "Authorization: Bearer ${TOKEN}" -o /tmp/cfg.json
+                jq '.passwordLogin.enabled=false' /tmp/cfg.json > /tmp/cfg2.json
+                curl -fsS -X PUT "${BASE}/api/system-config" -H "Authorization: Bearer ${TOKEN}" \
+                  -H 'Content-Type: application/json' -d @/tmp/cfg2.json >/dev/null
+              fi
+
+              echo "==> bootstrap complete"
+          env:
+            - name: ADMIN_EMAIL
+              value: {{ include "immich.adminEmail" . | quote }}
+            - name: ADMIN_NAME
+              value: {{ .Values.bootstrap.admin.name | quote }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "immich.secretName" . }}
+                  key: admin-password
+            - name: OAUTH_ISSUER_URL
+              value: {{ .Values.bootstrap.oauth.issuerUrl | quote }}
+            - name: OAUTH_CLIENT_ID
+              value: {{ .Values.bootstrap.oauth.clientId | quote }}
+            - name: OAUTH_SCOPE
+              value: {{ .Values.bootstrap.oauth.scope | quote }}
+            - name: OAUTH_BUTTON_TEXT
+              value: {{ .Values.bootstrap.oauth.buttonText | quote }}
+            - name: OAUTH_TOKEN_AUTH_METHOD
+              value: {{ .Values.bootstrap.oauth.tokenEndpointAuthMethod | default "client_secret_basic" | quote }}
+            - name: OAUTH_AUTO_REGISTER
+              value: {{ .Values.bootstrap.oauth.autoRegister | quote }}
+            - name: OAUTH_AUTO_LAUNCH
+              value: {{ .Values.bootstrap.oauth.autoLaunch | quote }}
+            - name: DISABLE_PASSWORD_LOGIN
+              value: {{ .Values.bootstrap.oauth.disablePasswordLogin | quote }}
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "immich.secretName" . }}
+                  key: oauth-client-secret
+{{- end }}

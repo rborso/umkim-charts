@@ -1,0 +1,147 @@
+# UMKIM-tailored Paperless-ngx stack.
+#
+# Self-contained: paperless-ngx (webserver + consumer + scheduler in one
+# container) + PostgreSQL + valkey. A post-install bootstrap seeds tags and
+# verifies the admin login. SSO uses OIDC (Authelia over LLDAP) via django-allauth.
+
+# UMKIM app metadata. Read when the catalog is rendered and used to pre-fill the
+# install prompt (not consumed by the chart).
+umkim:
+  # Tenant this app's route defaults to. Every directory is created with a
+  # `default-tenant` group at deploy time (see the UMKIM LLDAP bootstrap), so it
+  # is the one tenant that exists everywhere without an operator declaring one.
+  tenant: default-tenant
+  # Recommended Authelia OIDC client.
+  oidc:
+    clientId: paperless
+    clientName: Paperless
+    redirectPaths:
+      - /accounts/oidc/authelia/login/callback/
+    requirePkce: false
+
+namespaceOverride: ""
+
+# Extra env/volumes/mounts for the web container. OIDC CA trust is handled by
+# the chart: an init container combines the image roots with the optional
+# umkim-thin-ca ConfigMap, so the path always exists.
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+image: ghcr.io/paperless-ngx/paperless-ngx:3.3.0
+imagePullPolicy: IfNotPresent
+timezone: "UTC"
+ocrLanguage: "eng"
+# Public URL, e.g. https://paperless.example.com
+externalUrl: ""
+allowedHosts: "*"
+
+persistence:
+  data:
+    size: 5Gi
+    storageClass: ""
+  media:
+    size: 20Gi
+    storageClass: ""
+  consume:
+    size: 2Gi
+    storageClass: ""
+  export:
+    size: 2Gi
+    storageClass: ""
+
+# Generated on install when empty (stored in the release Secret).
+secretKey: ""
+admin:
+  user: "admin"
+  password: ""
+  mail: ""
+
+postgres:
+  image: docker.io/library/postgres:18.6
+  imagePullPolicy: IfNotPresent
+  database: paperless
+  username: paperless
+  password: ""
+  persistence:
+    size: 5Gi
+    storageClass: ""
+
+redis:
+  image: docker.io/valkey/valkey:9.1.2-alpine
+  imagePullPolicy: IfNotPresent
+
+# SSO via OIDC (Authelia backed by LLDAP).
+oidc:
+  enabled: false
+  providerId: "authelia"
+  providerName: "Authelia"
+  clientId: "paperless"
+  clientSecret: ""
+  # OIDC issuer/server URL (not the discovery document), e.g.
+  # https://auth.example.com
+  issuerUrl: ""
+  # Token endpoint auth method; must match the Authelia client.
+  tokenAuthMethod: "client_secret_basic"
+  redirectLoginToSso: false
+  autoSignup: true
+  # Paperless group(s) that newly signed-up SSO users join. The bootstrap creates
+  # any missing group with `groupPermissions`, so directory users can actually
+  # use the app instead of hitting 403s.
+  defaultGroups:
+    - "sso-users"
+  groupPermissions:
+    - view_document
+    - add_document
+    - change_document
+    - delete_document
+    - view_tag
+    - add_tag
+    - change_tag
+    - delete_tag
+    - view_correspondent
+    - view_documenttype
+    - view_storagepath
+    - view_savedview
+    - view_note
+    - view_customfield
+    - view_sharelink
+    - view_uisettings
+    - change_uisettings
+    - view_paperlesstask
+    - view_mailaccount
+    - view_mailrule
+
+# Post-install bootstrap: seed tags and verify the admin login.
+bootstrap:
+  enabled: true
+  image: alpine:3.20.10
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  tags:
+    - "inbox"
+    - "archive"
+  hookDeletePolicy: before-hook-creation
+
+# Extra /etc/hosts entries for the server pod (e.g. resolve the SSO issuer to
+# the in-cluster ingress so OIDC discovery/token calls stay inside the cluster).
+hostAliases: []
+
+ingress:
+  enabled: false
+  host: ""
+  className: traefik
+  entrypoint: websecure
+  tls: true
+  certResolver: letsencrypt
+  # Optional Authelia "first line defense"; chain the middleware.
+  forwardAuth: false
+  forwardAuthMiddleware: "fleet-ingress-authelia@file"
+  middlewares: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    memory: 2Gi

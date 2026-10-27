@@ -1,0 +1,10 @@
+UMKIM app charts
+Copyright 2026 Robert Borso
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The charts in this repository are the author's own UMKIM-tailored work. They
+deploy upstream application images under the licenses listed in
+`LICENSES.md`. No upstream application source is vendored here.
+
+Packaged chart archives include a copy of LICENSE and this NOTICE.

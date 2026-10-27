@@ -1,0 +1,18 @@
+apiVersion: v2
+name: paperless
+description: UMKIM-tailored Paperless-ngx stack (server, Postgres, valkey) with LLDAP/SSO bootstrap
+type: application
+version: 0.1.11
+appVersion: "3.3.0"
+
+home: https://github.com/rborso/umkim-thin
+sources:
+  - https://github.com/rborso/umkim-thin
+  - https://github.com/paperless-ngx/paperless-ngx
+  - https://www.postgresql.org/
+  - https://github.com/valkey-io/valkey
+maintainers:
+  - name: Robert Borso
+    url: https://github.com/rborso
+annotations:
+  artifacthub.io/license: Apache-2.0

@@ -1,0 +1,35 @@
+{{/*
+API keys for the *arr apps.
+
+The chart owns them so the bootstrap can talk to Prowlarr/Sonarr/Radarr without
+mounting their config volumes — that mount was the only reason the config volumes
+had to be ReadWriteMany, and SQLite over an RWX (NFS) class is what breaks Radarr.
+
+Each *arr's initContainer seeds its config.xml with the key from here, and the
+bootstrap reads the same key as an env var. `lookup` keeps an existing key across
+upgrades: a regenerated key would not match the running app's config.xml until
+its next restart.
+*/}}
+{{- $name := printf "%s-api-keys" .Release.Name -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $name -}}
+{{- $keys := dict -}}
+{{- range $app := list "prowlarr" "sonarr" "radarr" "lidarr" -}}
+{{- $field := printf "%s-api-key" $app -}}
+{{- $value := randAlphaNum 32 | b64enc -}}
+{{- if and $existing $existing.data (index $existing.data $field) -}}
+{{- $value = index $existing.data $field -}}
+{{- end -}}
+{{- $_ := set $keys $field $value -}}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: bootstrap
+type: Opaque
+data:
+  {{- range $field, $value := $keys }}
+  {{ $field }}: {{ $value }}
+  {{- end }}

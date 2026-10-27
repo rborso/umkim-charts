@@ -1,0 +1,22 @@
+apiVersion: v2
+name: servarr
+description: Self-contained Servarr media stack for UMKIM (Seerr + Jellyfin + the Sonarr/Radarr acquisition pipeline). Workloads + Services only; FleetApp owns routing/auth.
+type: application
+version: 0.2.26
+appVersion: "1.0.0"
+
+home: https://github.com/rborso/umkim-thin
+sources:
+  - https://github.com/rborso/umkim-thin
+  - https://github.com/seerr-team/seerr
+  - https://github.com/jellyfin/jellyfin
+  - https://github.com/Sonarr/Sonarr
+  - https://github.com/Radarr/Radarr
+  - https://github.com/Prowlarr/Prowlarr
+  - https://github.com/qbittorrent/qBittorrent
+  - https://github.com/FlareSolverr/FlareSolverr
+maintainers:
+  - name: Robert Borso
+    url: https://github.com/rborso
+annotations:
+  artifacthub.io/license: Apache-2.0

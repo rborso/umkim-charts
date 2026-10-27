@@ -1,0 +1,55 @@
+{{- $config := .Values.storage.config | default dict -}}
+{{- $media := .Values.storage.media | default dict -}}
+{{- $configMode := $config.accessMode | default "ReadWriteOnce" -}}
+{{- $mediaMode := $media.accessMode | default "ReadWriteMany" -}}
+{{- $validModes := list "ReadWriteOnce" "ReadWriteMany" "ReadWriteOncePod" -}}
+{{/*
+The config volumes hold SQLite databases, so they must be ReadWriteOnce on a
+block-backed class; the media volume is shared, so it must be ReadWriteMany.
+Render fails on an unusable mode rather than creating a claim that will not bind.
+*/}}
+{{- if not (has $configMode $validModes) -}}
+{{- fail (printf "storage.config.accessMode %q is not one of %s" $configMode (join ", " $validModes)) -}}
+{{- end -}}
+{{- if not (has $mediaMode $validModes) -}}
+{{- fail (printf "storage.media.accessMode %q is not one of %s" $mediaMode (join ", " $validModes)) -}}
+{{- end -}}
+{{- if .Values.media.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-media
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  accessModes:
+    - {{ $mediaMode }}
+  {{- with $media.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.media.size | default "50Gi" }}
+{{- end }}
+{{- range $name, $app := .Values.apps }}
+{{- if and $app.enabled (ne ($app.persistence | default true) false) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-config
+  labels:
+    {{- include "servarr.labels" (dict "name" $name "root" $) | nindent 4 }}
+spec:
+  accessModes:
+    - {{ $configMode }}
+  {{- with $config.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $app.configSize | default "1Gi" }}
+{{- end }}
+{{- end }}

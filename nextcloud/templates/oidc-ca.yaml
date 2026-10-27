@@ -1,0 +1,16 @@
+{{- if .Values.oidc.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-php-ca
+  namespace: {{ include "nextcloud.namespace" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+data:
+  # PHP's HTTP clients (the user_oidc app) must trust the platform CA for the
+  # Authelia discovery/token/JWKS calls. The combined bundle also keeps the
+  # public roots, so the app store still works.
+  zz-umkim-ca.ini: |
+    curl.cainfo=/etc/ssl/combined/ca.crt
+    openssl.cafile=/etc/ssl/combined/ca.crt
+{{- end }}

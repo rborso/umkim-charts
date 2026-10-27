@@ -1,0 +1,98 @@
+{{- if .Values.bootstrap.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-bootstrap
+  namespace: {{ include "paperless.namespace" . }}
+  labels:
+    {{- include "paperless.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bootstrap
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: {{ .Values.bootstrap.hookDeletePolicy }}
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.bootstrap.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperless
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: bootstrap
+    spec:
+      # Co-locate with the server pod, which holds the shared ReadWriteOnce data
+      # volume (no PV node affinity on backends like Longhorn).
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: paperless
+                  app.kubernetes.io/instance: {{ .Release.Name }}
+                  app.kubernetes.io/component: server
+              topologyKey: kubernetes.io/hostname
+      restartPolicy: Never
+      containers:
+        - name: bootstrap
+          image: {{ .Values.bootstrap.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              apk add --no-cache curl jq >/dev/null 2>&1
+              BASE="http://{{ include "paperless.host" . }}.{{ include "paperless.namespace" . }}.svc.cluster.local:8000"
+              echo "==> waiting for Paperless at ${BASE}"
+              ok=""
+              for i in $(seq 1 120); do
+                if curl -fsS "${BASE}/accounts/login/" >/dev/null 2>&1; then ok=1; break; fi
+                sleep 5
+              done
+              [ -n "${ok}" ] || { echo "Paperless did not become ready" >&2; exit 1; }
+
+              echo "==> admin login"
+              TOKEN="$(curl -fsS -X POST "${BASE}/api/token/" -H 'Content-Type: application/json' \
+                -d "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASSWORD}\"}" | jq -r '.token // empty')"
+              [ -n "${TOKEN}" ] || { echo "admin token request failed" >&2; exit 1; }
+              echo "admin authenticated"
+
+              echo "==> seed tags"
+              for t in ${SEED_TAGS}; do
+                curl -fsS -X POST "${BASE}/api/tags/" -H "Authorization: Token ${TOKEN}" \
+                  -H 'Content-Type: application/json' -d "{\"name\":\"${t}\"}" >/dev/null 2>&1 \
+                  && echo "tag ${t} created" || echo "tag ${t} exists"
+              done
+
+              echo "==> verify API"
+              COUNT="$(curl -fsS "${BASE}/api/tags/" -H "Authorization: Token ${TOKEN}" | jq '.count // (.results | length) // 0')"
+              echo "tags visible: ${COUNT}"
+
+              echo "==> default SSO group(s)"
+              GROUPS_JSON="$(curl -fsS "${BASE}/api/groups/" -H "Authorization: Token ${TOKEN}")"
+              for g in ${DEFAULT_GROUPS}; do
+                if echo "${GROUPS_JSON}" | jq -e --arg g "${g}" '.results[] | select(.name==$g)' >/dev/null 2>&1; then
+                  echo "group ${g} exists"
+                  continue
+                fi
+                RESP="$(curl -sS -X POST "${BASE}/api/groups/" -H "Authorization: Token ${TOKEN}" \
+                  -H 'Content-Type: application/json' \
+                  -d "{\"name\":\"${g}\",\"permissions\":${GROUP_PERMISSIONS}}" 2>&1)" \
+                  || { echo "group ${g} create failed: ${RESP}" >&2; exit 1; }
+                echo "group ${g} created"
+              done
+              echo "==> bootstrap complete"
+          env:
+            - name: ADMIN_USER
+              value: {{ .Values.admin.user | quote }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless.secretName" . }}
+                  key: admin-password
+            - name: SEED_TAGS
+              value: {{ join " " .Values.bootstrap.tags | quote }}
+            - name: DEFAULT_GROUPS
+              value: {{ join " " .Values.oidc.defaultGroups | quote }}
+            - name: GROUP_PERMISSIONS
+              value: {{ toJson .Values.oidc.groupPermissions | quote }}
+{{- end }}
