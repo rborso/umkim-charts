@@ -55,7 +55,7 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
           volumeMounts:
-            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: data, mountPath: /var/lib/postgresql }
           resources:
             {{- toYaml .Values.postgres.resources | nindent 12 }}
       volumes:
