@@ -1,0 +1,63 @@
+namespaceOverride: ""
+
+image: ghcr.io/mealie-recipes/mealie:v3.22.0
+imagePullPolicy: IfNotPresent
+timezone: "UTC"
+
+# Public URL, e.g. https://mealie.example.com. UMKIM fills this from the route.
+externalUrl: ""
+# Forwarded-header trust. The pod is only reachable through the ingress.
+hostIP: "10.244.0.0/16,10.43.0.0/16"
+
+allowSignup: false
+allowPasswordLogin: true
+apiDocs: false
+
+persistence:
+  data:
+    size: 5Gi
+    storageClass: ""
+
+postgres:
+  image: docker.io/library/postgres:18.6
+  imagePullPolicy: IfNotPresent
+  database: mealie
+  username: mealie
+  # Empty generates a random password on install (stored in the release Secret).
+  password: ""
+  persistence:
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { memory: 1Gi }
+
+# Mealie creates a local superuser with these initial values. The bootstrap Job
+# changes the password before the install is reported complete; the account
+# remains available as a breakglass admin alongside directory SSO.
+bootstrap:
+  enabled: true
+  image: docker.io/library/alpine:3.20.10
+  adminEmail: "mealie-admin@mealie.local"
+  initialPassword: "MyPassword"
+  # Empty generates a random password on install (stored in the release Secret).
+  adminPassword: ""
+  hookDeletePolicy: before-hook-creation
+
+# OIDC via Authelia. UMKIM fills these values from the catalog's OIDC client.
+oidc:
+  enabled: false
+  issuerUrl: ""
+  clientId: "mealie"
+  clientSecret: ""
+  providerName: "Authelia"
+  signupEnabled: true
+  autoRedirect: false
+  # Authelia does not need Mealie's email_verified strictness for directory users.
+  requireEmailVerification: false
+  userGroup: ""
+  adminGroup: ""

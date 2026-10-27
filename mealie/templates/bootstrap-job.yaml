@@ -1,0 +1,92 @@
+{{- if .Values.bootstrap.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-bootstrap
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: mealie-bootstrap
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: {{ .Values.bootstrap.hookDeletePolicy }}
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mealie-bootstrap
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: bootstrap
+          image: {{ .Values.bootstrap.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              apk add --no-cache curl jq >/dev/null 2>&1
+              BASE="http://{{ .Release.Name }}:9000"
+              echo "==> waiting for Mealie"
+              for i in $(seq 1 120); do
+                if curl -fsS "${BASE}/api/app/about/startup-info" >/dev/null 2>&1; then break; fi
+                sleep 5
+              done
+              curl -fsS "${BASE}/api/app/about/startup-info" >/dev/null
+
+              login() {
+                email="$1"; pass="$2"; out="$3"
+                code=$(curl -sS -o "$out" -w '%{http_code}' -X POST "${BASE}/api/auth/token" \
+                  -H 'Content-Type: application/x-www-form-urlencoded' \
+                  --data-urlencode "username=${email}" --data-urlencode "password=${pass}") || true
+                [ "$code" = 200 ] || return 1
+                jq -e -r '.access_token // empty' "$out" >/dev/null 2>&1
+              }
+
+              # A rerun after the first bootstrap must not fail: the generated
+              # admin password is already the current one.
+              if login "${ADMIN_EMAIL}" "${ADMIN_PASSWORD}" /tmp/new-login.json; then
+                echo "admin password already rotated"
+                exit 0
+              fi
+
+              EMAIL="${ADMIN_EMAIL}"
+              if ! login "${EMAIL}" "${INITIAL_PASSWORD}" /tmp/initial-login.json; then
+                EMAIL="changeme@example.com"
+                login "${EMAIL}" "${INITIAL_PASSWORD}" /tmp/initial-login.json || {
+                  echo "could not authenticate with the initial Mealie admin" >&2
+                  exit 1
+                }
+              fi
+              TOKEN=$(jq -r '.access_token' /tmp/initial-login.json)
+              BODY=$(jq -n --arg current "${INITIAL_PASSWORD}" --arg new "${ADMIN_PASSWORD}" \
+                '{currentPassword:$current,newPassword:$new}')
+              code=$(curl -sS -o /tmp/change.json -w '%{http_code}' -X PUT "${BASE}/api/users/password" \
+                -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' \
+                -d "$BODY") || true
+              [ "$code" = 200 ] || { echo "password change failed (HTTP ${code})" >&2; cat /tmp/change.json >&2; exit 1; }
+
+              if ! login "${ADMIN_EMAIL}" "${ADMIN_PASSWORD}" /tmp/new-login.json; then
+                # DEFAULT_EMAIL was not honoured; keep the login email that
+                # worked and rotate the password under that account.
+                login "${EMAIL}" "${ADMIN_PASSWORD}" /tmp/new-login.json || {
+                  echo "admin password verification failed" >&2
+                  exit 1
+                }
+              fi
+              echo "Mealie admin password rotated"
+          env:
+            - name: ADMIN_EMAIL
+              value: {{ .Values.bootstrap.adminEmail | quote }}
+            - name: INITIAL_PASSWORD
+              value: {{ .Values.bootstrap.initialPassword | quote }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: admin-password
+{{- end }}
