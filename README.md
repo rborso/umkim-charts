@@ -13,8 +13,10 @@ install uses the submodule/local mirror.
 
 | Directory | Chart | Upstream application |
 |---|---|---|
+| `actualbudget/` | `actualbudget` | Actual Budget, SQLite |
 | `gitea/` | `gitea` | Gitea, PostgreSQL, Valkey |
 | `immich/` | `immich` | Immich, vectorchord PostgreSQL, Valkey |
+| `homebox/` | `homebox` | HomeBox, SQLite |
 | `nextcloud/` | `nextcloud` | Nextcloud, PostgreSQL, Valkey, Collabora |
 | `mealie/` | `mealie` | Mealie, PostgreSQL |
 | `sparkyfitness/` | `sparkyfitness` | SparkyFitness (source-available, non-commercial), PostgreSQL |
@@ -76,7 +78,7 @@ git clone git@github.com:rborso/umkim-charts.git
 ```
 
 ```bash
-for chart in gitea immich nextcloud paperless sparkyfitness servarr; do
+for chart in actualbudget gitea homebox immich nextcloud paperless sparkyfitness servarr; do
   helm lint "$chart"
   helm package "$chart" --destination /tmp/charts
 done

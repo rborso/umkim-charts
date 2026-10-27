@@ -1,0 +1,37 @@
+namespaceOverride: ""
+
+image: docker.io/actualbudget/actual-server:26.10.0
+imagePullPolicy: IfNotPresent
+port: 5006
+
+# Public URL, e.g. https://actual.example.com. UMKIM fills this from the route.
+externalUrl: ""
+# UMKIM sets this so the app reaches the portal through Traefik, even when the
+# cluster cannot hairpin to the public address.
+hostAliases: []
+
+persistence:
+  data:
+    size: 5Gi
+    storageClass: ""
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { memory: 1Gi }
+
+# OIDC via Authelia. UMKIM fills the client from the catalog's OIDC client.
+# Actual derives its redirect URI from ACTUAL_OPENID_SERVER_HOSTNAME:
+# https://<host>/openid/callback
+oidc:
+  enabled: false
+  issuerUrl: ""
+  # Empty derives <issuerUrl>/.well-known/openid-configuration.
+  discoveryUrl: ""
+  clientId: "actualbudget"
+  clientSecret: ""
+  providerName: "Authelia"
+  # Authelia's guide for Actual uses the oauth2 flow; openid is also accepted.
+  authMethod: "oauth2"
+  # login creates a user on first OIDC login; manual requires a matching user.
+  userCreationMode: "login"
+  enforce: false

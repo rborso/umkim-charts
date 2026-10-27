@@ -1,0 +1,16 @@
+apiVersion: v2
+name: homebox
+description: HomeBox home inventory with SQLite and Authelia OIDC
+type: application
+version: 0.1.0
+appVersion: "0.27.1"
+
+home: https://homebox.software
+sources:
+  - https://github.com/sysadminsmedia/homebox
+  - https://homebox.software/en/quick-start/configure/oidc/
+maintainers:
+  - name: Robert Borso
+    url: https://github.com/rborso
+annotations:
+  artifacthub.io/license: Apache-2.0

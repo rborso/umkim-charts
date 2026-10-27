@@ -1,0 +1,39 @@
+namespaceOverride: ""
+
+image: ghcr.io/sysadminsmedia/homebox:0.27.1-rootless
+imagePullPolicy: IfNotPresent
+port: 7745
+
+# Public URL, e.g. https://homebox.example.com. UMKIM fills this from the route.
+externalUrl: ""
+# Hostname only (no scheme). Empty derives it from externalUrl.
+hostname: ""
+# UMKIM sets this so the app reaches the portal through Traefik.
+hostAliases: []
+
+persistence:
+  data:
+    size: 5Gi
+    storageClass: ""
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 512Mi }
+
+allowLocalLogin: true
+allowRegistration: false
+logLevel: "info"
+
+# OIDC via Authelia. UMKIM fills the client from the catalog's OIDC client.
+# HomeBox derives its callback from the request/base URL:
+# https://<host>/api/v1/users/login/oidc/callback
+oidc:
+  enabled: false
+  issuerUrl: ""
+  clientId: "homebox"
+  clientSecret: ""
+  scope: "openid profile email"
+  autoRedirect: false
+  verifyEmail: false
+  buttonText: "Authelia"
+  allowedGroups: ""

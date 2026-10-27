@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-data
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.persistence.data.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.data.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: actualbudget
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: actualbudget
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: actualbudget
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: ca-bundle
+          image: {{ .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              # This image has Node's built-in Mozilla roots but no system bundle.
+              # Emit those roots, then append the platform CA when it exists.
+              node -e 'require("fs").writeFileSync("/etc/ssl/combined/ca.crt", require("tls").rootCertificates.join("\n") + "\n")'
+              if [ -f /etc/ssl/umkim-thin/ca.crt ]; then
+                cat /etc/ssl/umkim-thin/ca.crt >> /etc/ssl/combined/ca.crt
+              fi
+          volumeMounts:
+            - { name: ca, mountPath: /etc/ssl/umkim-thin, readOnly: true }
+            - { name: combined-ca, mountPath: /etc/ssl/combined }
+      containers:
+        - name: actualbudget
+          image: {{ .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          ports:
+            - { name: http, containerPort: {{ .Values.port }} }
+          env:
+            - name: ACTUAL_PORT
+              value: {{ .Values.port | quote }}
+            - name: ACTUAL_DATA_DIR
+              value: "/data"
+            - name: NODE_EXTRA_CA_CERTS
+              value: "/etc/ssl/combined/ca.crt"
+            {{- if .Values.oidc.enabled }}
+            - name: ACTUAL_OPENID_DISCOVERY_URL
+              value: {{ default (printf "%s/.well-known/openid-configuration" (trimSuffix "/" .Values.oidc.issuerUrl)) .Values.oidc.discoveryUrl | quote }}
+            - name: ACTUAL_OPENID_CLIENT_ID
+              value: {{ .Values.oidc.clientId | quote }}
+            - name: ACTUAL_OPENID_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: oidc-client-secret
+            - name: ACTUAL_OPENID_SERVER_HOSTNAME
+              value: {{ .Values.externalUrl | quote }}
+            - name: ACTUAL_OPENID_PROVIDER_NAME
+              value: {{ .Values.oidc.providerName | quote }}
+            - name: ACTUAL_OPENID_AUTH_METHOD
+              value: {{ .Values.oidc.authMethod | quote }}
+            - name: ACTUAL_USER_CREATION_MODE
+              value: {{ .Values.oidc.userCreationMode | quote }}
+            - name: ACTUAL_OPENID_ENFORCE
+              value: {{ .Values.oidc.enforce | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+            - { name: combined-ca, mountPath: /etc/ssl/combined, readOnly: true }
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+        - name: tmp
+          emptyDir: {}
+        - name: ca
+          configMap:
+            name: umkim-thin-ca
+            optional: true
+        - name: combined-ca
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: actualbudget
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    app.kubernetes.io/name: actualbudget
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.port }}
+      targetPort: http

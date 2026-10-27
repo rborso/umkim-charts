@@ -8,7 +8,9 @@ repository does not vendor upstream application source.
 
 | Chart | License |
 |---|---|
+| `actualbudget` | Apache-2.0 |
 | `gitea` | Apache-2.0 |
+| `homebox` | Apache-2.0 |
 | `immich` | Apache-2.0 |
 | `nextcloud` | Apache-2.0 |
 | `paperless` | Apache-2.0 |
@@ -19,6 +21,18 @@ Each chart's `Chart.yaml` declares `artifacthub.io/license: Apache-2.0` and list
 its upstream sources. Packaged chart archives include `LICENSE` and `NOTICE`.
 
 ## Applications
+
+### Actual Budget
+
+| Component | License | Source |
+|---|---|---|
+| Actual Budget | MIT | https://github.com/actualbudget/actual |
+
+### HomeBox
+
+| Component | License | Source |
+|---|---|---|
+| HomeBox | AGPL-3.0 | https://github.com/sysadminsmedia/homebox |
 
 ### Gitea
 
