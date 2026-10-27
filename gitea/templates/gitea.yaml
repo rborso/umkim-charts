@@ -112,6 +112,10 @@ spec:
               value: {{ .Values.gitea.maxCreationLimit | default 10 | quote }}
             - name: GITEA__repository__DEFAULT_BRANCH
               value: "main"
+            - name: GITEA__i18n__LANGS
+              value: {{ .Values.gitea.i18n.languages | default "en-US" | quote }}
+            - name: GITEA__i18n__NAMES
+              value: {{ .Values.gitea.i18n.names | default "English" | quote }}
             {{- if .Values.auth.oidc.enabled }}
             # Go's TLS client uses SSL_CERT_FILE; the combined bundle carries
             # both the image's public roots and the platform CA.

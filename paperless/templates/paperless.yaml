@@ -154,6 +154,10 @@ spec:
               value: {{ .Values.timezone | quote }}
             - name: PAPERLESS_OCR_LANGUAGE
               value: {{ .Values.ocrLanguage | quote }}
+            {{- with .Values.ocrLanguages }}
+            - name: PAPERLESS_OCR_LANGUAGES
+              value: {{ . | quote }}
+            {{- end }}
             - name: PAPERLESS_ALLOWED_HOSTS
               value: {{ .Values.allowedHosts | quote }}
             {{- if .Values.externalUrl }}

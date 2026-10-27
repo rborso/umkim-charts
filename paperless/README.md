@@ -68,6 +68,13 @@ umkim-thin.
 See `values.yaml`. Notable: `bootstrap.tags`, `ingress.forwardAuth`, `oidc.*`,
 `persistence.*`.
 
+## Language
+
+`ocrLanguage` (default `eng`) sets Paperless's `PAPERLESS_OCR_LANGUAGE`;
+`ocrLanguages` installs extra Tesseract packs when the selected language is not
+already in the image. This controls OCR only. Paperless's UI language follows
+the browser/user locale and has no server-side default.
+
 ## License
 
 The chart source is Apache-2.0, part of umkim-thin. The deployed images keep

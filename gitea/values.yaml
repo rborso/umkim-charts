@@ -36,6 +36,11 @@ gitea:
   defaultUserIsRestricted: false
   # Per-user cap for repository creation; 0 disables the limit.
   maxCreationLimit: 10
+  # Gitea's language selector. The first locale is the fallback when the
+  # browser language does not match; a matching browser locale still wins.
+  i18n:
+    languages: "en-US,hu-HU,de-DE,fr-FR,es-ES,it-IT,nl-NL,pl-PL,pt-BR,pt-PT,cs-CZ,ru-RU,uk-UA,sv-SE,fi-FI,tr-TR,el-GR,bg-BG,ja-JP,ko-KR,zh-CN,zh-TW,fa-IR,id-ID"
+    names: "English,Magyar,Deutsch,Francais,Espanol,Italiano,Nederlands,Polski,Portugues (Brasil),Portugues (Portugal),Cestina,Russkiy,Ukrainska,Svenska,Suomi,Turkce,Ellinika,Balgarski,Japanese,Korean,Chinese (Simplified),Chinese (Traditional),Persian,Indonesian"
   # Built-in SSH server for `git clone` over SSH.
   ssh:
     enabled: true

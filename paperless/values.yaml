@@ -32,6 +32,9 @@ image: ghcr.io/paperless-ngx/paperless-ngx:3.3.0
 imagePullPolicy: IfNotPresent
 timezone: "UTC"
 ocrLanguage: "eng"
+# Extra Tesseract packs to install (space-separated); the selected OCR
+# language is added here when it is not one of the image defaults.
+ocrLanguages: ""
 # Public URL, e.g. https://paperless.example.com
 externalUrl: ""
 allowedHosts: "*"

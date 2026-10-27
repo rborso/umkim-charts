@@ -156,6 +156,13 @@ See `values.yaml`. Notable: `auth.ldap.*`, `gitea.ssh.*`,
 - The bootstrap Job log ends with `bootstrap complete`.
 - A directory user can sign in on the login page (the LDAP source appears there).
 
+## Language
+
+The chart sets Gitea's `[i18n] LANGS`/`NAMES` list with `en-US` first by
+default. Gitea uses a matching browser locale when available; the first entry
+is the fallback. The console install form can reorder the fallback. A selected
+locale does not force every browser to that language.
+
 ## License
 
 The chart source is Apache-2.0, part of umkim-thin. The deployed images keep
