@@ -16,6 +16,7 @@ install uses the submodule/local mirror.
 | `gitea/` | `gitea` | Gitea, PostgreSQL, Valkey |
 | `immich/` | `immich` | Immich, vectorchord PostgreSQL, Valkey |
 | `nextcloud/` | `nextcloud` | Nextcloud, PostgreSQL, Valkey, Collabora |
+| `mealie/` | `mealie` | Mealie, PostgreSQL |
 | `paperless/` | `paperless` | Paperless-ngx, PostgreSQL, Valkey |
 | `servarr/` | `servarr` | Seerr, Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, FlareSolverr |
 
