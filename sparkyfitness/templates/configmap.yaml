@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: sparkyfitness-server
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  NODE_ENV: "production"
+  TZ: {{ .Values.timezone | quote }}
+  SPARKY_FITNESS_LOG_LEVEL: {{ .Values.server.logLevel | quote }}
+  SPARKY_FITNESS_SERVER_PORT: {{ .Values.server.port | quote }}
+  SPARKY_FITNESS_DB_HOST: {{ printf "%s-postgres" .Release.Name | quote }}
+  SPARKY_FITNESS_DB_PORT: "5432"
+  SPARKY_FITNESS_DB_NAME: {{ .Values.postgres.database | quote }}
+  SPARKY_FITNESS_DB_USER: {{ .Values.postgres.username | quote }}
+  SPARKY_FITNESS_APP_DB_USER: "sparky"
+  SPARKY_FITNESS_FRONTEND_URL: {{ .Values.externalUrl | quote }}
+  SPARKY_FITNESS_DISABLE_SIGNUP: {{ .Values.server.disableSignup | quote }}
+  {{- with .Values.server.adminEmail }}
+  SPARKY_FITNESS_ADMIN_EMAIL: {{ . | quote }}
+  {{- end }}
+  SPARKY_FITNESS_FORCE_EMAIL_LOGIN: {{ .Values.server.forceEmailLogin | quote }}
+  SPARKY_FITNESS_DISABLE_EMAIL_LOGIN: {{ .Values.server.disableEmailLogin | quote }}
+  ALLOW_PRIVATE_NETWORK_CORS: {{ .Values.server.allowPrivateNetworkCors | quote }}
+  ALLOW_PRIVATE_NETWORK_FOOD_PROVIDERS: {{ .Values.server.allowPrivateNetworkFoodProviders | quote }}
+  NODE_EXTRA_CA_CERTS: "/etc/ssl/combined/ca.crt"
+  {{- if .Values.oidc.enabled }}
+  SPARKY_FITNESS_OIDC_AUTH_ENABLED: "true"
+  SPARKY_FITNESS_OIDC_PROVIDER_SLUG: {{ required "oidc.providerSlug is required when OIDC is enabled" .Values.oidc.providerSlug | quote }}
+  SPARKY_FITNESS_OIDC_PROVIDER_NAME: {{ required "oidc.providerName is required when OIDC is enabled" .Values.oidc.providerName | quote }}
+  SPARKY_FITNESS_OIDC_ISSUER_URL: {{ required "oidc.issuerUrl is required when OIDC is enabled" .Values.oidc.issuerUrl | quote }}
+  SPARKY_FITNESS_OIDC_CLIENT_ID: {{ required "oidc.clientId is required when OIDC is enabled" .Values.oidc.clientId | quote }}
+  SPARKY_FITNESS_OIDC_SCOPE: {{ .Values.oidc.scope | quote }}
+  SPARKY_FITNESS_OIDC_AUTO_REGISTER: {{ .Values.oidc.autoRegister | quote }}
+  SPARKY_FITNESS_OIDC_AUTO_REDIRECT: {{ .Values.oidc.autoRedirect | quote }}
+  SPARKY_FITNESS_OIDC_TOKEN_AUTH_METHOD: {{ .Values.oidc.tokenAuthMethod | quote }}
+  {{- with .Values.oidc.domain }}
+  SPARKY_FITNESS_OIDC_DOMAIN: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.oidc.adminGroup }}
+  SPARKY_FITNESS_OIDC_ADMIN_GROUP: {{ . | quote }}
+  {{- end }}
+  {{- end }}

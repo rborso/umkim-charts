@@ -1,0 +1,97 @@
+namespaceOverride: ""
+
+# Public URL, e.g. https://sparkyfitness.example.com. UMKIM fills this from the
+# route. SparkyFitness derives the OIDC callback from it.
+externalUrl: ""
+# UMKIM sets this so the app reaches its public host and the portal through
+# Traefik, even when the cluster cannot hairpin to the public address.
+hostAliases: []
+imagePullPolicy: IfNotPresent
+timezone: "UTC"
+
+frontend:
+  image: ghcr.io/codewithcj/sparkyfitness-frontend:v1.9.0
+  port: 80
+  rateLimit: "5r/s"
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+server:
+  image: ghcr.io/codewithcj/sparkyfitness-server:v1.9.0
+  port: 3010
+  logLevel: "info"
+  # SparkyFitness creates a normal account for an OIDC user on first login, but
+  # the account only gets the admin panel when its email matches this value (or
+  # it is in oidc.adminGroup). The catalog sets the directory admin's address.
+  adminEmail: ""
+  # OIDC auto-registration is blocked when signup is disabled, so this must stay
+  # false while oidc.autoRegister is true.
+  disableSignup: false
+  # Keep password login available as a fail-safe. There is no local account
+  # until one is created, so OIDC is still the normal sign-in path.
+  forceEmailLogin: true
+  disableEmailLogin: false
+  # Mealie/Tandoor/Norish are reached at their in-cluster Service address, which
+  # SparkyFitness treats as a private URL. The catalog opts in so invited users
+  # can add the provider; see README.md for the SSRF trade-off.
+  allowPrivateNetworkFoodProviders: false
+  allowPrivateNetworkCors: false
+  resources:
+    requests: { cpu: 200m, memory: 256Mi }
+    limits: { memory: 1Gi }
+
+# Uploads and database backups live on separate PVCs, like the upstream chart.
+persistence:
+  uploads:
+    size: 10Gi
+    storageClass: ""
+  backup:
+    size: 5Gi
+    storageClass: ""
+
+postgres:
+  image: docker.io/library/postgres:18.6
+  imagePullPolicy: IfNotPresent
+  database: sparkyfitness
+  username: sparky_admin
+  # Empty generates a random password on install (stored in the release Secret).
+  password: ""
+  persistence:
+    size: 8Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+# OIDC via Authelia. UMKIM fills these values from the catalog's OIDC client.
+# The callback is <externalUrl>/api/auth/sso/callback/<providerSlug>.
+oidc:
+  enabled: false
+  providerSlug: "authelia"
+  providerName: "Authelia"
+  issuerUrl: ""
+  clientId: "sparkyfitness"
+  clientSecret: ""
+  scope: "openid email profile"
+  autoRegister: true
+  autoRedirect: false
+  # The catalog's Authelia clients authenticate at the token endpoint with
+  # client_secret_basic; SparkyFitness defaults to client_secret_post.
+  tokenAuthMethod: "client_secret_basic"
+  domain: ""
+  adminGroup: ""
+
+bootstrap:
+  enabled: true
+  image: docker.io/library/alpine:3.20.10
+  hookDeletePolicy: before-hook-creation
+
+# Optional post-install readiness check for a Mealie instance in this cluster.
+# It does not create a provider or a token; the provider is configured once in
+# SparkyFitness (Settings -> Food & Exercise Data Providers, or Admin -> Global
+# Data Providers). See README.md for the exact URL and steps.
+integrations:
+  mealie:
+    enabled: false
+    baseUrl: ""

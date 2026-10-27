@@ -17,6 +17,7 @@ install uses the submodule/local mirror.
 | `immich/` | `immich` | Immich, vectorchord PostgreSQL, Valkey |
 | `nextcloud/` | `nextcloud` | Nextcloud, PostgreSQL, Valkey, Collabora |
 | `mealie/` | `mealie` | Mealie, PostgreSQL |
+| `sparkyfitness/` | `sparkyfitness` | SparkyFitness (source-available, non-commercial), PostgreSQL |
 | `paperless/` | `paperless` | Paperless-ngx, PostgreSQL, Valkey |
 | `servarr/` | `servarr` | Seerr, Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, FlareSolverr |
 
@@ -75,7 +76,7 @@ git clone git@github.com:rborso/umkim-charts.git
 ```
 
 ```bash
-for chart in gitea immich nextcloud paperless servarr; do
+for chart in gitea immich nextcloud paperless sparkyfitness servarr; do
   helm lint "$chart"
   helm package "$chart" --destination /tmp/charts
 done

@@ -12,6 +12,7 @@ repository does not vendor upstream application source.
 | `immich` | Apache-2.0 |
 | `nextcloud` | Apache-2.0 |
 | `paperless` | Apache-2.0 |
+| `sparkyfitness` | Apache-2.0 |
 | `servarr` | Apache-2.0 |
 
 Each chart's `Chart.yaml` declares `artifacthub.io/license: Apache-2.0` and lists
@@ -59,6 +60,20 @@ its upstream sources. Packaged chart archives include `LICENSE` and `NOTICE`.
 |---|---|---|
 | Mealie | AGPL-3.0 | https://github.com/mealie-recipes/mealie |
 | PostgreSQL | PostgreSQL License | https://www.postgresql.org/about/licence/ |
+
+### SparkyFitness
+
+| Component | License | Source |
+|---|---|---|
+| SparkyFitness | Source-available, non-commercial (custom license) | https://github.com/CodeWithCJ/SparkyFitness/blob/main/LICENSE |
+| PostgreSQL | PostgreSQL License | https://www.postgresql.org/about/licence/ |
+
+SparkyFitness is **not OSI open source**. Its upstream `LICENSE` permits
+personal, educational and nonprofit use that generates no revenue, and forbids
+commercial use without written permission. The chart is Apache-2.0 and deploys
+the unmodified upstream image; it does not relicense the application. Keep the
+upstream notice and do not offer a paid service around the app without the
+author's permission.
 
 ### Servarr
 
