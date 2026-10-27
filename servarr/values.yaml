@@ -64,7 +64,7 @@ bootstrap:
   nodeSelector: {}
   # Secret with the app credentials; defaults to <release>-bootstrap.
   secretName: ""
-  mediaLanguage: hu
+  mediaLanguage: en
   qualityCutoff: 720p
   # Auto-approve requests from directory users so they do not get stuck pending.
   seerrAutoApprove: true

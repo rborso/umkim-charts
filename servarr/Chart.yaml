@@ -2,7 +2,7 @@ apiVersion: v2
 name: servarr
 description: Self-contained Servarr media stack for UMKIM (Seerr + Jellyfin + the Sonarr/Radarr acquisition pipeline). Workloads + Services only; FleetApp owns routing/auth.
 type: application
-version: 0.2.26
+version: 0.2.27
 appVersion: "1.0.0"
 
 home: https://github.com/rborso/umkim-thin

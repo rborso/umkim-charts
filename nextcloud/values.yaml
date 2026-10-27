@@ -120,6 +120,8 @@ oidc:
 # Post-install bootstrap: trusted domains, LDAP, and Collabora wiring.
 bootstrap:
   enabled: true
+  # Default language for new users (and the local admin).
+  language: en
   # Defaults to nextcloud.image; override to pin a separate bootstrap image.
   image: ""
   backoffLimit: 2

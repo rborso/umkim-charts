@@ -109,6 +109,12 @@ loop through NAT and return the router's RFC1918 rejection page.
 - A directory user signs in on the login page.
 - Opening a document offers **Open with Collabora**.
 
+## Language
+
+`bootstrap.language` (default `en`) sets Nextcloud's default language for new
+users and the local admin during bootstrap. Existing users keep their own
+language. The console install form exposes the same setting.
+
 ## License
 
 The chart source is Apache-2.0, part of umkim-thin. The deployed images keep

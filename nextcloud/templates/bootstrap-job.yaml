@@ -64,6 +64,11 @@ spec:
               occ config:system:set overwrite.cli.url --value="${EXTERNAL_URL}"
               occ config:system:set overwriteprotocol --value="${PROTOCOL}"
 
+              echo "==> default language (${DEFAULT_LANGUAGE})"
+              occ config:system:set default_language --value="${DEFAULT_LANGUAGE}"
+              occ user:setting "${ADMIN_USERNAME}" core lang "${DEFAULT_LANGUAGE}" || \
+                echo "WARN: could not set the admin language"
+
               if [ "${LDAP_ENABLED:-false}" = "true" ]; then
                 echo "==> directory (LDAP ${LDAP_HOST}:${LDAP_PORT})"
                 occ app:enable user_ldap
@@ -143,6 +148,10 @@ spec:
               value: {{ include "nextcloud.externalUrl" . | quote }}
             - name: PROTOCOL
               value: {{ (urlParse (include "nextcloud.externalUrl" .)).scheme | quote }}
+            - name: DEFAULT_LANGUAGE
+              value: {{ .Values.bootstrap.language | default "en" | quote }}
+            - name: ADMIN_USERNAME
+              value: {{ .Values.bootstrap.admin.username | quote }}
             - name: LDAP_ENABLED
               value: {{ .Values.auth.ldap.enabled | quote }}
             - name: LDAP_HOST

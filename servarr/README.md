@@ -11,6 +11,13 @@ their APIs. It does not vendor upstream application source. See the
 `bootstrap` values for the optional image/Job; the platform console normally
 builds/imports it for the pinned node.
 
+## Language
+
+The media stack's default language is English. The console install form and the
+chart's `bootstrap.mediaLanguage` accept English, Hungarian, and the other
+supported Radarr languages. It controls the Seerr original language, the
+Radarr/Sonarr language profile, and Jellyfin's first-run language.
+
 ## License
 
 The **chart source** is Apache-2.0, part of umkim-thin.

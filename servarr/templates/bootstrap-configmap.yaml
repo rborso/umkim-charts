@@ -6,9 +6,9 @@ metadata:
   labels:
     app.kubernetes.io/instance: {{ .Release.Name }}
 data:
-  DEFAULT_MEDIA_LANGUAGE: {{ .Values.bootstrap.mediaLanguage | default "hu" | quote }}
+  DEFAULT_MEDIA_LANGUAGE: {{ .Values.bootstrap.mediaLanguage | default "en" | quote }}
   DEFAULT_QUALITY_CUTOFF: {{ .Values.bootstrap.qualityCutoff | default "720p" | quote }}
-  JELLYFIN_LANGUAGE: {{ .Values.bootstrap.mediaLanguage | default "hu" | quote }}
+  JELLYFIN_LANGUAGE: {{ .Values.bootstrap.mediaLanguage | default "en" | quote }}
   {{- /*
     The bootstrap image enables every component by default, so a component this
     chart does not ship must be stated as "false" or the bootstrap waits for a
