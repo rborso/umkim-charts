@@ -54,13 +54,20 @@ spec:
               value: {{ .Values.postgres.database | quote }}
             - name: POSTGRES_INITDB_ARGS
               value: "--data-checksums"
+            # The immich postgres image (postgres 14) declares
+            # VOLUME /var/lib/postgresql/data. The runtime creates an anonymous
+            # volume there, which shadows the PVC mounted at the parent and
+            # makes the database disappear with the pod. Keep PGDATA in a
+            # sibling directory on the PVC instead.
+            - name: PGDATA
+              value: /var/lib/postgresql/pgdata
           ports:
             - name: postgres
               containerPort: 5432
           volumeMounts:
             # Mount the parent, not the data dir: a filesystem volume (Longhorn,
             # hostPath) carries lost+found, and initdb refuses a non-empty
-            # PGDATA. PGDATA stays /var/lib/postgresql/data inside the mount.
+            # PGDATA. PGDATA is /var/lib/postgresql/pgdata inside the mount.
             - name: data
               mountPath: /var/lib/postgresql
           readinessProbe:

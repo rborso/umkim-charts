@@ -2,7 +2,7 @@ apiVersion: v2
 name: immich
 description: UMKIM-tailored Immich stack (server, vectorchord Postgres, valkey) with LLDAP/SSO bootstrap
 type: application
-version: 0.1.9
+version: 0.1.10
 appVersion: "release"
 
 home: https://github.com/rborso/umkim-thin
