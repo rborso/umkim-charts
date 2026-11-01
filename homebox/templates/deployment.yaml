@@ -70,6 +70,31 @@ spec:
           volumeMounts:
             - { name: ca, mountPath: /etc/ssl/umkim-thin, readOnly: true }
             - { name: combined-ca, mountPath: /etc/ssl/combined }
+        {{- if .Values.oidc.enabled }}
+        # HomeBox fetches the discovery document once at startup and falls back
+        # to local login for good if that fails. On a fresh install the app can
+        # start before the identity stack has a ready endpoint, so wait (bounded)
+        # for the directory before letting it initialize.
+        - name: wait-for-oidc
+          image: {{ .Values.oidc.waitImage | default "curlimages/curl:8.11.1" | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              url="{{ trimSuffix "/" .Values.oidc.issuerUrl }}/.well-known/openid-configuration"
+              i=0
+              while [ "$i" -lt 60 ]; do
+                if curl -fsS -o /dev/null --max-time 5 "$url"; then exit 0; fi
+                i=$((i+1)); sleep 2
+              done
+              echo "OIDC discovery did not answer within 120s; starting anyway" >&2
+              exit 0
+        {{- end }}
       containers:
         - name: homebox
           image: {{ .Values.image | quote }}

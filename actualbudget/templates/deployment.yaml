@@ -71,6 +71,31 @@ spec:
           volumeMounts:
             - { name: ca, mountPath: /etc/ssl/umkim-thin, readOnly: true }
             - { name: combined-ca, mountPath: /etc/ssl/combined }
+        {{- if .Values.oidc.enabled }}
+        # Actual Budget builds its OpenID client once at startup; if discovery
+        # fails it keeps a configuration error until the pod restarts. Wait
+        # (bounded) for the identity stack so an install that races it still
+        # ends with working single sign-on.
+        - name: wait-for-oidc
+          image: {{ .Values.oidc.waitImage | default "curlimages/curl:8.11.1" | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              url="{{ default (printf "%s/.well-known/openid-configuration" (trimSuffix "/" .Values.oidc.issuerUrl)) .Values.oidc.discoveryUrl }}"
+              i=0
+              while [ "$i" -lt 60 ]; do
+                if curl -fsS -o /dev/null --max-time 5 "$url"; then exit 0; fi
+                i=$((i+1)); sleep 2
+              done
+              echo "OIDC discovery did not answer within 120s; starting anyway" >&2
+              exit 0
+        {{- end }}
       containers:
         - name: actualbudget
           image: {{ .Values.image | quote }}
