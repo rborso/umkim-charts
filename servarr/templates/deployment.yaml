@@ -109,20 +109,36 @@ spec:
                   open(conf_path, "w", encoding="utf-8").write("[Preferences]\n")
               with open(conf_path, "r", encoding="utf-8") as handle:
                   lines = handle.read().splitlines()
-              filtered = [l for l in lines if not l.startswith("WebUI\\Password_PBKDF2=") and not l.startswith("WebUI\\Username=")]
+              # qBittorrent 5.3 reads WebUI/Username and WebUI/Password_PBKDF2
+              # from the [WebUI] section. Older releases used the
+              # [Preferences] WebUI\* keys; drop those so a stale copy cannot
+              # win on a reused volume.
+              filtered = [
+                  l for l in lines
+                  if not l.startswith("WebUI\\Password_PBKDF2=")
+                  and not l.startswith("WebUI\\Username=")
+              ]
               salt = os.urandom(16)
               digest = hashlib.pbkdf2_hmac("sha512", password.encode(), salt, 100000, dklen=64)
               hash_value = f"{base64.b64encode(salt).decode()}:{base64.b64encode(digest).decode()}"
-              pbkdf2_line = f'WebUI\\Password_PBKDF2="@ByteArray({hash_value})"'
-              username_line = f"WebUI\\Username={username}"
+              pbkdf2_line = f'Password_PBKDF2="@ByteArray({hash_value})"'
+              username_line = f"Username={username}"
               output = []
+              in_webui = False
               inserted = False
               for line in filtered:
+                  section = line.strip()
+                  if section.startswith("[") and section.endswith("]"):
+                      if in_webui and not inserted:
+                          output.extend([username_line, pbkdf2_line]); inserted = True
+                      in_webui = section == "[WebUI]"
+                  elif in_webui and (section.startswith("Username=") or section.startswith("Password_PBKDF2=")):
+                      continue
                   output.append(line)
-                  if line.strip() == "[Preferences]" and not inserted:
-                      output.extend([username_line, pbkdf2_line]); inserted = True
+              if in_webui and not inserted:
+                  output.extend([username_line, pbkdf2_line]); inserted = True
               if not inserted:
-                  output.extend(["", "[Preferences]", username_line, pbkdf2_line])
+                  output.extend(["", "[WebUI]", username_line, pbkdf2_line])
               with open(conf_path, "w", encoding="utf-8") as handle:
                   handle.write("\n".join(output) + "\n")
               print(f"updated {conf_path}")
