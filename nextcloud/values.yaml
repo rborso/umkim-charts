@@ -16,7 +16,7 @@ umkim:
 namespaceOverride: ""
 
 nextcloud:
-  image: docker.io/library/nextcloud:35.0.1-apache
+  image: docker.io/library/nextcloud:35.0.2-apache
   imagePullPolicy: IfNotPresent
   timezone: "UTC"
   # Public URL, e.g. https://nextcloud.example.com. UMKIM fills it from the
@@ -37,7 +37,7 @@ nextcloud:
 # Collabora Online (CODE). Disabled leaves plain Nextcloud.
 collabora:
   enabled: true
-  image: docker.io/collabora/code:26.04.5.1.1
+  image: docker.io/collabora/code:26.04.5.2.1
   imagePullPolicy: IfNotPresent
   # Public URL the browser loads the editor from, e.g.
   # https://collabora.example.com. Give Collabora its own UMKIM route and set
@@ -70,7 +70,7 @@ postgres:
 
 redis:
   enabled: true
-  image: docker.io/valkey/valkey:9.1.2-alpine
+  image: docker.io/valkey/valkey:9.1.3-alpine
   imagePullPolicy: IfNotPresent
   resources:
     requests: { cpu: 20m, memory: 64Mi }

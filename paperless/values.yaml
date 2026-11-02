@@ -28,7 +28,7 @@ extraEnv: []
 extraVolumes: []
 extraVolumeMounts: []
 
-image: ghcr.io/paperless-ngx/paperless-ngx:3.3.0
+image: ghcr.io/paperless-ngx/paperless-ngx:3.4.1
 imagePullPolicy: IfNotPresent
 timezone: "UTC"
 ocrLanguage: "eng"
@@ -71,7 +71,7 @@ postgres:
     storageClass: ""
 
 redis:
-  image: docker.io/valkey/valkey:9.1.2-alpine
+  image: docker.io/valkey/valkey:9.1.3-alpine
   imagePullPolicy: IfNotPresent
 
 # SSO via OIDC (Authelia backed by LLDAP).
@@ -118,7 +118,7 @@ oidc:
 # Post-install bootstrap: seed tags and verify the admin login.
 bootstrap:
   enabled: true
-  image: alpine:3.20.10
+  image: alpine:3.24.3
   backoffLimit: 2
   activeDeadlineSeconds: 600
   tags:

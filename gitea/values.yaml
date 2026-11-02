@@ -17,7 +17,7 @@ umkim:
 namespaceOverride: ""
 
 gitea:
-  image: docker.io/gitea/gitea:28.1.0
+  image: docker.io/gitea/gitea:28.3.0
   imagePullPolicy: IfNotPresent
   timezone: "UTC"
   # Public URL, e.g. https://gitea.example.com. Used for clone URLs and
@@ -90,7 +90,7 @@ postgres:
 
 redis:
   enabled: true
-  image: docker.io/valkey/valkey:9.1.2-alpine
+  image: docker.io/valkey/valkey:9.1.3-alpine
   imagePullPolicy: IfNotPresent
   resources:
     requests: { cpu: 20m, memory: 64Mi }

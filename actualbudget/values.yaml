@@ -1,6 +1,6 @@
 namespaceOverride: ""
 
-image: docker.io/actualbudget/actual-server:26.10.0
+image: docker.io/actualbudget/actual-server:26.11.0
 imagePullPolicy: IfNotPresent
 port: 5006
 

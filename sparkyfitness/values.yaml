@@ -10,7 +10,7 @@ imagePullPolicy: IfNotPresent
 timezone: "UTC"
 
 frontend:
-  image: ghcr.io/codewithcj/sparkyfitness-frontend:v1.9.0
+  image: ghcr.io/codewithcj/sparkyfitness-frontend:v1.11.0
   port: 80
   rateLimit: "5r/s"
   resources:
@@ -18,7 +18,7 @@ frontend:
     limits: { memory: 256Mi }
 
 server:
-  image: ghcr.io/codewithcj/sparkyfitness-server:v1.9.0
+  image: ghcr.io/codewithcj/sparkyfitness-server:v1.11.0
   port: 3010
   logLevel: "info"
   # SparkyFitness creates a normal account for an OIDC user on first login, but
@@ -84,7 +84,7 @@ oidc:
 
 bootstrap:
   enabled: true
-  image: docker.io/library/alpine:3.20.10
+  image: docker.io/library/alpine:3.24.3
   hookDeletePolicy: before-hook-creation
 
 # Optional post-install readiness check for a Mealie instance in this cluster.

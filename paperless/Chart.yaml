@@ -2,8 +2,8 @@ apiVersion: v2
 name: paperless
 description: UMKIM-tailored Paperless-ngx stack (server, Postgres, valkey) with LLDAP/SSO bootstrap
 type: application
-version: 0.1.12
-appVersion: "3.3.0"
+version: 0.1.13
+appVersion: "3.4.1"
 
 home: https://github.com/rborso/umkim-thin
 sources:

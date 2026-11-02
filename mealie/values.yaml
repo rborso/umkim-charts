@@ -1,8 +1,13 @@
 namespaceOverride: ""
 
-image: ghcr.io/mealie-recipes/mealie:v3.22.0
+image: ghcr.io/mealie-recipes/mealie:v3.30.0
 imagePullPolicy: IfNotPresent
 timezone: "UTC"
+
+# Extra environment variables for the Mealie container. Mealie 3.26+ blocks
+# server-initiated requests to private networks unless HTTP_ALLOW_LIST names
+# them; set that (or any other variable) here without a chart change.
+extraEnv: []
 
 # Public URL, e.g. https://mealie.example.com. UMKIM fills this from the route.
 externalUrl: ""
@@ -44,7 +49,7 @@ resources:
 # remains available as a breakglass admin alongside directory SSO.
 bootstrap:
   enabled: true
-  image: docker.io/library/alpine:3.20.10
+  image: docker.io/library/alpine:3.24.3
   adminEmail: "changeme@example.com"
   initialPassword: "MyPassword"
   # Empty generates a random password on install (stored in the release Secret).
