@@ -148,7 +148,9 @@ apps:
     # bootstrap URL uses :80, which Node's URL normalises away. Expose it too.
     serviceExtraPorts:
       - { name: web, port: 8096 }
-    configSize: 2Gi
+    # Jellyfin 12 refuses to start when /config/data/data has less than 2 GiB
+    # free; a 2 GiB volume shows ~1.9 GiB after filesystem overhead.
+    configSize: 3Gi
     media: true
     # LDAP authentication for Jellyfin via the official jellyfin-plugin-ldapauth,
     # on by default: a cluster that runs its own LLDAP should let the same
