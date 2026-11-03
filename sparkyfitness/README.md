@@ -5,7 +5,7 @@ the frontend, the API server and PostgreSQL, with Authelia OIDC and the
 Mealie recipe provider reachable inside the cluster.
 
 The catalog entry installs the public `ghcr.io/codewithcj/sparkyfitness-*`
-images pinned to `v1.9.0`. The chart itself is Apache-2.0, but **SparkyFitness
+images pinned to `v1.11.0`. The chart itself is Apache-2.0, but **SparkyFitness
 is not OSI open source**: its `LICENSE` is a source-available, non-commercial
 license. Commercial use needs written permission from the upstream author. See
 `docs/licenses.md` in umkim-thin.

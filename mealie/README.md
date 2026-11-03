@@ -17,7 +17,8 @@ complete.
 
 | Value | Default | Purpose |
 |---|---|---|
-| `image` | `ghcr.io/mealie-recipes/mealie:v3.22.0` | Application image |
+| `image` | `ghcr.io/mealie-recipes/mealie:v3.30.0` | Application image |
+| `extraEnv` | `[]` | Extra container env (e.g. `HTTP_ALLOW_LIST` for Mealie 3.26+ private-network imports) |
 | `externalUrl` | empty | Public URL, normally supplied by the catalog |
 | `persistence.data.storageClass` | cluster default | Mealie data |
 | `postgres.persistence.storageClass` | cluster default | PostgreSQL data |

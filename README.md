@@ -62,7 +62,7 @@ git fetch
 git switch --detach <chart-repo-commit-or-tag>
 cd ../..
 git add charts/apps
-git commit -m "chart(gitea): update to 0.1.20"
+git commit -m "chart(gitea): update to 0.1.21"
 ```
 
 Then bump `catalog/<app>.yaml` to the same chart version and run the platform
