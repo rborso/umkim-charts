@@ -1,0 +1,50 @@
+namespaceOverride: ""
+
+# The upstream image runs as root and binds :80 by default. The chart runs it
+# as UID 1000 on 8080, so the container needs no privileged port capability.
+image: docker.io/vaultwarden/server:1.37.5
+imagePullPolicy: IfNotPresent
+port: 8080
+
+# Public URL, e.g. https://vaultwarden.example.com. UMKIM fills this from the route.
+externalUrl: ""
+# UMKIM sets this so the app reaches the portal for OIDC discovery/callback
+# through Traefik even when the cluster cannot hairpin to the public address.
+hostAliases: []
+
+persistence:
+  data:
+    size: 5Gi
+    storageClass: ""
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 512Mi }
+
+# The first account has to be created in the web vault. After that, disable
+# signups (or keep them behind Authelia) and use invitations.
+signupsAllowed: true
+signupsVerify: false
+invitationsAllowed: true
+showPasswordHint: false
+logLevel: "warn"
+
+# Empty generates a 48-character token and keeps it across upgrades. Read it
+# from the <release>-secrets Secret when you need /admin.
+adminToken: ""
+
+# OpenID Connect SSO via Authelia. The catalog registers the client and fills
+# these values; standalone installs can leave it off and use local login.
+sso:
+  enabled: false
+  only: false
+  authority: ""
+  clientId: "vaultwarden"
+  clientSecret: ""
+  scopes: "openid profile email offline_access"
+  pkce: true
+  # SSO may create the Vaultwarden account on first login. The master password
+  # is still set client-side; SSO never supplies vault encryption keys.
+  signupsAllowed: true
+  matchEmail: false
+  allowUnknownEmailVerification: false

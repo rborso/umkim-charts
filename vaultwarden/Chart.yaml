@@ -1,0 +1,16 @@
+apiVersion: v2
+name: vaultwarden
+description: Vaultwarden password manager with SQLite and the Bitwarden web vault
+type: application
+version: 0.1.2
+appVersion: "1.37.5"
+
+home: https://github.com/dani-garcia/vaultwarden
+sources:
+  - https://github.com/dani-garcia/vaultwarden
+  - https://github.com/dani-garcia/vaultwarden/wiki
+maintainers:
+  - name: Robert Borso
+    url: https://github.com/rborso
+annotations:
+  artifacthub.io/license: Apache-2.0

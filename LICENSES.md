@@ -16,6 +16,7 @@ repository does not vendor upstream application source.
 | `paperless` | Apache-2.0 |
 | `sparkyfitness` | Apache-2.0 |
 | `servarr` | Apache-2.0 |
+| `vaultwarden` | Apache-2.0 |
 
 Each chart's `Chart.yaml` declares `artifacthub.io/license: Apache-2.0` and lists
 its upstream sources. Packaged chart archives include `LICENSE` and `NOTICE`.
@@ -33,6 +34,13 @@ its upstream sources. Packaged chart archives include `LICENSE` and `NOTICE`.
 | Component | License | Source |
 |---|---|---|
 | HomeBox | AGPL-3.0 | https://github.com/sysadminsmedia/homebox |
+
+### Vaultwarden
+
+| Component | License | Source |
+|---|---|---|
+| Vaultwarden | AGPL-3.0 | https://github.com/dani-garcia/vaultwarden |
+| SQLite | Public Domain | https://www.sqlite.org/copyright.html |
 
 ### Gitea
 

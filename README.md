@@ -11,17 +11,18 @@ install uses the submodule/local mirror.
 
 ## Charts
 
-| Directory | Chart | Upstream application |
-|---|---|---|
-| `actualbudget/` | `actualbudget` | Actual Budget, SQLite |
-| `gitea/` | `gitea` | Gitea, PostgreSQL, Valkey |
-| `immich/` | `immich` | Immich, vectorchord PostgreSQL, Valkey |
-| `homebox/` | `homebox` | HomeBox, SQLite |
-| `nextcloud/` | `nextcloud` | Nextcloud, PostgreSQL, Valkey, Collabora |
-| `mealie/` | `mealie` | Mealie, PostgreSQL |
-| `sparkyfitness/` | `sparkyfitness` | SparkyFitness (source-available, non-commercial), PostgreSQL |
-| `paperless/` | `paperless` | Paperless-ngx, PostgreSQL, Valkey |
-| `servarr/` | `servarr` | Seerr, Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, FlareSolverr |
+| Directory | Chart | Chart version | App version | Upstream application |
+|---|---|---|---|---|
+| `actualbudget/` | `actualbudget` | `0.1.2` | `26.11.0` | Actual Budget, SQLite |
+| `gitea/` | `gitea` | `0.1.21` | `28.3.0` | Gitea, PostgreSQL, Valkey |
+| `immich/` | `immich` | `0.1.11` | `3.3.5` | Immich, vectorchord PostgreSQL, Valkey |
+| `homebox/` | `homebox` | `0.1.1` | `0.27.1` | HomeBox, SQLite |
+| `nextcloud/` | `nextcloud` | `0.1.20` | `35.0.2` | Nextcloud, PostgreSQL, Valkey, Collabora |
+| `mealie/` | `mealie` | `0.1.4` | `3.30.0` | Mealie, PostgreSQL |
+| `sparkyfitness/` | `sparkyfitness` | `0.1.1` | `1.11.0` | SparkyFitness (source-available, non-commercial), PostgreSQL |
+| `paperless/` | `paperless` | `0.1.13` | `3.4.1` | Paperless-ngx, PostgreSQL, Valkey |
+| `servarr/` | `servarr` | `0.3.2` | `1.0.0` | Seerr, Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, FlareSolverr |
+| `vaultwarden/` | `vaultwarden` | `0.1.2` | `1.37.5` | Vaultwarden (Bitwarden-compatible password manager), SQLite |
 
 Each chart is UMKIM-tailored: it carries the route/auth/bootstrap assumptions
 the platform expects, not only the upstream application.
@@ -78,7 +79,7 @@ git clone git@github.com:rborso/umkim-charts.git
 ```
 
 ```bash
-for chart in actualbudget gitea homebox immich nextcloud paperless sparkyfitness servarr; do
+for chart in actualbudget gitea homebox immich mealie nextcloud paperless sparkyfitness servarr vaultwarden; do
   helm lint "$chart"
   helm package "$chart" --destination /tmp/charts
 done
