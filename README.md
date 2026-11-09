@@ -2,17 +2,16 @@
 
 The official app charts for [umkim-thin](https://github.com/rborso/umkim-thin).
 
-This repository is the source of the charts the catalog pins. Each chart is
-released independently as an immutable OCI tag
-(`helm push ... oci://ghcr.io/rborso/charts`), so a chart update does not require
-a platform/console release. The platform repo consumes it as a git submodule at
-`charts/apps/` and packages those charts into the local mirror. The submodule
-and mirror are the development/offline fallback; the OCI tag is the production
-delivery path.
+This repository is the source of the charts the catalog pins. Charts are
+distributed as source: each installation packages the version it needs into its
+local chart mirror. There is no chart registry. The platform repo vendors this
+repository as the `charts/apps` submodule; the installer packages those charts
+into the mirror, so a chart update is a version bump and a commit here, followed
+by a submodule bump in `umkim-thin`.
 
-The catalog entries keep OCI references as canonical metadata. The console uses
-a locally cached chart for the exact version first, then pulls the OCI ref with
-that exact `--version`.
+The catalog entries point at the chart's directory in this repository. The
+console uses the locally packaged chart for the exact version; the ref records
+provenance, it is not a fetch URL.
 
 ## Charts
 
@@ -53,20 +52,16 @@ and media classes.
   image, sidecar or default change.
 - A chart change is a PR in this repository. Before merging, run the lint,
   render and package commands below.
-- Publish each version as an immutable OCI tag:
-
-  ```bash
-  helm package <chart> --destination dist
-  helm push dist/<chart>-<version>.tgz oci://ghcr.io/rborso/charts
-  ```
-
-  Never reuse a chart version, and never move an existing tag.
+- A chart release is a version bump and a commit in this repository. The
+  platform's `charts/apps` submodule pin and the catalog entry's `version` are
+  the release; the installer packages the chart into the local mirror. Never
+  reuse a chart version.
 - Publish a catalog release in umkim-thin that lists the new version (and
   `minimumUmkimThinVersion` if the chart needs a newer console). This is a
   catalog upload, not a platform image rebuild.
-- The `charts/apps` submodule can be refreshed independently as the offline
-  fallback. A platform release only needs the submodule bump when the bundled
-  fallback should include the new chart.
+- The `charts/apps` submodule can be refreshed independently. A platform
+  release only needs the submodule bump when the bundled mirror should include
+  the new chart.
 
 To refresh the platform fallback:
 
@@ -79,9 +74,9 @@ git add charts/apps
 git commit -m "chart(gitea): update the offline fallback"
 ```
 
-Then update `catalog/<app>.yaml` if the fallback catalog should point at it.
-The production path is the OCI tag plus an uploaded catalog; neither requires
-the other train to release.
+Then update `catalog/<app>.yaml` if the bundled catalog should point at it.
+The chart source/version and an uploaded catalog are independent trains; the
+mirror package is what installs.
 
 ## Development
 
