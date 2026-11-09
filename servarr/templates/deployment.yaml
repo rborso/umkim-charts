@@ -28,6 +28,14 @@ spec:
         checksum/ldap-config: {{ include (print $.Template.BasePath "/jellyfin-ldap.yaml") $ | sha256sum }}
       {{- end }}
     spec:
+      {{- if eq $name "seerr" }}
+      # Seerr runs as the image's unprivileged `node` user (UID 1000) and writes
+      # its SQLite database and settings directly into the config PVC. fsGroup
+      # makes a root-owned PV (e.g. Longhorn) writable; local-path volumes are
+      # already world-writable.
+      securityContext:
+        fsGroup: 1000
+      {{- end }}
       {{- with $.Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

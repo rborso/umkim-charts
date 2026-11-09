@@ -36,6 +36,15 @@ The **chart source** is Apache-2.0, part of umkim-thin.
 
 See [`../LICENSES.md`](../LICENSES.md) for sources and notices.
 
+## Persistence
+
+Each app keeps its configuration on its `<app>-config` PVC, mounted at
+`/config`. Seerr's image defaults to `/app/config`, so the chart sets
+`CONFIG_DIRECTORY=/config` and gives its pod `fsGroup: 1000` (the image runs as
+UID 1000). When upgrading from a chart before 0.3.3, copy the old container's
+`/app/config` onto the PVC **before** the upgrade; otherwise Seerr starts at
+first-run setup and only the copy can restore it.
+
 ## Bootstrap
 
 The optional `bootstrap` hook Job uses the servarr-bootstrap image to configure

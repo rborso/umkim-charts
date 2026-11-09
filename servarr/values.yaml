@@ -197,6 +197,11 @@ apps:
     port: 5055
     servicePort: 80
     configSize: 1Gi
+    env:
+      # Seerr defaults to /app/config; this chart mounts the config PVC at
+      # /config. Without this it keeps its database/settings in the container
+      # layer (and Seerr shows its "volume mount was not configured" banner).
+      CONFIG_DIRECTORY: /config
   # Not shipped by this chart, but the bootstrap image enables every component by
   # default and the generated ConfigMap only states the flags for the apps listed
   # here — so a missing entry means "on", and the bootstrap waits for a Lidarr
