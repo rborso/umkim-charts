@@ -26,7 +26,7 @@ that exact `--version`.
 | `mealie/` | `mealie` | `0.1.4` | `3.30.0` | Mealie, PostgreSQL |
 | `sparkyfitness/` | `sparkyfitness` | `0.1.1` | `1.11.0` | SparkyFitness (source-available, non-commercial), PostgreSQL |
 | `paperless/` | `paperless` | `0.1.13` | `3.4.1` | Paperless-ngx, PostgreSQL, Valkey |
-| `servarr/` | `servarr` | `0.3.2` | `1.0.0` | Seerr, Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, FlareSolverr |
+| `servarr/` | `servarr` | `0.3.3` | `1.0.0` | Seerr, Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, FlareSolverr |
 | `vaultwarden/` | `vaultwarden` | `0.1.2` | `1.37.5` | Vaultwarden (Bitwarden-compatible password manager), SQLite |
 
 Each chart is UMKIM-tailored: it carries the route/auth/bootstrap assumptions
