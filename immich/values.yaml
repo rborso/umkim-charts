@@ -26,8 +26,8 @@ namespaceOverride: ""
 
 immich:
   # Exact upstream release tags; the server and ML components ship together.
-  serverImage: ghcr.io/immich-app/immich-server:v3.3.5
-  mlImage: ghcr.io/immich-app/immich-machine-learning:v3.3.5
+  serverImage: ghcr.io/immich-app/immich-server:v3.4.1
+  mlImage: ghcr.io/immich-app/immich-machine-learning:v3.4.1
   imagePullPolicy: IfNotPresent
   # AI/machine-learning is off by default; enabling it deploys the ML component.
   machineLearning:

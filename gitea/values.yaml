@@ -17,7 +17,7 @@ umkim:
 namespaceOverride: ""
 
 gitea:
-  image: docker.io/gitea/gitea:28.3.0
+  image: docker.io/gitea/gitea:28.4.0
   imagePullPolicy: IfNotPresent
   timezone: "UTC"
   # Public URL, e.g. https://gitea.example.com. Used for clone URLs and

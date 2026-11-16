@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: 1
+  # The data PVC is ReadWriteOnce: a rolling update would schedule the new pod
+  # before the old one releases the volume and it would hang in
+  # FailedAttachVolume until the upgrade deadline.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: mealie

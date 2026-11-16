@@ -28,7 +28,7 @@ extraEnv: []
 extraVolumes: []
 extraVolumeMounts: []
 
-image: ghcr.io/paperless-ngx/paperless-ngx:3.4.1
+image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2
 imagePullPolicy: IfNotPresent
 timezone: "UTC"
 ocrLanguage: "eng"

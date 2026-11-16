@@ -10,7 +10,7 @@ imagePullPolicy: IfNotPresent
 timezone: "UTC"
 
 frontend:
-  image: ghcr.io/codewithcj/sparkyfitness-frontend:v1.11.0
+  image: ghcr.io/codewithcj/sparkyfitness-frontend:v1.12.1
   port: 80
   rateLimit: "5r/s"
   resources:
@@ -18,7 +18,7 @@ frontend:
     limits: { memory: 256Mi }
 
 server:
-  image: ghcr.io/codewithcj/sparkyfitness-server:v1.11.0
+  image: ghcr.io/codewithcj/sparkyfitness-server:v1.12.1
   port: 3010
   logLevel: "info"
   # SparkyFitness creates a normal account for an OIDC user on first login, but

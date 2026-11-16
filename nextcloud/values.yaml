@@ -16,7 +16,7 @@ umkim:
 namespaceOverride: ""
 
 nextcloud:
-  image: docker.io/library/nextcloud:35.0.2-apache
+  image: docker.io/library/nextcloud:35.0.3-apache
   imagePullPolicy: IfNotPresent
   timezone: "UTC"
   # Public URL, e.g. https://nextcloud.example.com. UMKIM fills it from the

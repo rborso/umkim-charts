@@ -22,6 +22,9 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: 1
+  # ReadWriteOnce data PVC: recreate rather than roll (see the app Deployment).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: mealie-postgres

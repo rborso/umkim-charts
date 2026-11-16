@@ -95,7 +95,7 @@ apps:
   sonarr:
     enabled: true
     image: lscr.io/linuxserver/sonarr
-    tag: "4.0.20.3014-ls2"
+    tag: "4.0.20.3014-ls5"
     port: 8989
     servicePort: 80
     configSize: 1Gi
@@ -103,7 +103,7 @@ apps:
   radarr:
     enabled: true
     image: lscr.io/linuxserver/radarr
-    tag: "6.4.4.10685-ls325"
+    tag: "7.0.3.10918-ls328"
     port: 7878
     servicePort: 80
     configSize: 1Gi
@@ -141,7 +141,7 @@ apps:
     image: lscr.io/linuxserver/jellyfin
     # 12.x keeps the /Startup first-run API the bootstrap drives; the wizard
     # endpoints are marked obsolete but still present in 12.4.
-    tag: "12.4ubu2604-ls57"
+    tag: "12.4ubu2604-ls59"
     port: 8096
     servicePort: 80
     # Seerr's Jellyfin auth falls back to the container port (8096) because the
@@ -193,7 +193,7 @@ apps:
   seerr:
     enabled: true
     image: ghcr.io/seerr-team/seerr
-    tag: "v3.5.1"
+    tag: "v3.5.2"
     port: 5055
     servicePort: 80
     configSize: 1Gi
