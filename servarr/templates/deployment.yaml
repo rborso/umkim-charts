@@ -26,6 +26,13 @@ spec:
         # platform's auth.ldap, so hashing apps.jellyfin.ldap alone left the pod
         # running with a stale file (its init container only renders at start).
         checksum/ldap-config: {{ include (print $.Template.BasePath "/jellyfin-ldap.yaml") $ | sha256sum }}
+        {{- /* The rendered config carries only the *name* of the bind secret, so
+               rotating the directory password (SEC-001, or the bind account
+               secret changing) did not roll the pod and Jellyfin kept binding
+               with the old password. Hash the secret's content as well. */}}
+        {{- $ref := $app.ldap.existingSecret | default (printf "%s-lldap-bind" $.Release.Name) }}
+        {{- $sec := (lookup "v1" "Secret" $.Release.Namespace $ref) }}
+        checksum/ldap-password: {{ (($sec).data | default dict | toJson) | sha256sum }}
       {{- end }}
     spec:
       {{- if eq $name "seerr" }}
