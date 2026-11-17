@@ -24,6 +24,8 @@ its next restart.
 apiVersion: v1
 kind: Secret
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ $name }}
   labels:
     app.kubernetes.io/instance: {{ .Release.Name }}

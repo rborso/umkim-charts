@@ -19,6 +19,8 @@ Render fails on an unusable mode rather than creating a claim that will not bind
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ .Release.Name }}-media
   labels:
     app.kubernetes.io/instance: {{ .Release.Name }}
@@ -39,6 +41,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ $name }}-config
   labels:
     {{- include "servarr.labels" (dict "name" $name "root" $) | nindent 4 }}

@@ -4,6 +4,8 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ .Release.Name }}-data
   namespace: {{ $ns }}
   labels:
@@ -20,6 +22,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ .Release.Name }}-media
   namespace: {{ $ns }}
   labels:
@@ -36,6 +40,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ .Release.Name }}-consume
   namespace: {{ $ns }}
   labels:
@@ -52,6 +58,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ .Release.Name }}-export
   namespace: {{ $ns }}
   labels:

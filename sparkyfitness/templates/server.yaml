@@ -1,6 +1,8 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ .Release.Name }}-uploads
   namespace: {{ .Release.Namespace }}
 spec:
@@ -15,6 +17,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ .Release.Name }}-backup
   namespace: {{ .Release.Namespace }}
 spec:

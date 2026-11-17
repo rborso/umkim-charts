@@ -78,6 +78,8 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ .Release.Name }}-jellyfin-ldap-secret
   labels:
     {{- include "servarr.labels" (dict "name" "jellyfin" "root" .) | nindent 4 }}
