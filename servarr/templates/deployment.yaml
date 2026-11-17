@@ -187,7 +187,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ $name }}
-          image: "{{ include "servarr.image" (dict "root" $ "app" $app) }}"
+          image: "{{ include "servarr.image" (dict "root" $ "app" $app "name" $name) }}"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

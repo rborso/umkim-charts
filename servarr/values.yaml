@@ -165,6 +165,10 @@ apps:
       #   Jellyfin 12.x   -> plugin v24 (targetAbi 12.0.0.0)
       pluginVersion: "24.0.0.0"
       pluginUrl: "https://github.com/jellyfin/jellyfin-plugin-ldapauth/releases/download/v24/ldap-authentication_24.0.0.0.zip"
+      # sha256 of the zip above (verified stable across fetches). Update it with
+      # pluginVersion; the init container refuses a mismatch rather than
+      # unpacking an unexpected artifact into the plugin directory.
+      pluginSha256: "3be1f9d6a6ce9ea375e556dd30136d178a8dbe35cbe866d30d3451dc3ff7e804"
       initImage: "busybox:1.36.1"
       # Empty means "take it from the platform's auth.ldap" (UMKIM sets host,
       # port, bindDn, userSearchBase and the bind Secret there). Override for a

@@ -30,6 +30,19 @@ data:
     if [ "$have" != "$want" ] || [ ! -f "$PLUGIN_DIR/LDAP-Auth.dll" ]; then
       echo "==> installing jellyfin-plugin-ldapauth $want"
       wget -qO /tmp/ldap-auth.zip "{{ $l.pluginUrl }}"
+      # Verify the pinned artifact before unpacking it into the plugin directory.
+      # The download is unauthenticated and the plugin runs with the user's
+      # credentials, so an unexpected body must not be installed.
+      if [ -n "{{ $l.pluginSha256 }}" ]; then
+        # busybox may not expose sha256sum as a bare applet; call it explicitly.
+        actual="$(busybox sha256sum /tmp/ldap-auth.zip | cut -d' ' -f1)"
+        if [ "$actual" != "{{ $l.pluginSha256 }}" ]; then
+          echo "ERROR: jellyfin-plugin-ldapauth $want checksum mismatch" >&2
+          echo "  want {{ $l.pluginSha256 }}" >&2
+          echo "  got  $actual" >&2
+          exit 1
+        fi
+      fi
       rm -f "$PLUGIN_DIR"/*.dll
       unzip -o /tmp/ldap-auth.zip -d "$PLUGIN_DIR" >/dev/null
       echo "$want" > "$PLUGIN_DIR/.version"
