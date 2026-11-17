@@ -2,7 +2,7 @@ apiVersion: v2
 name: actualbudget
 description: Actual Budget personal finance with SQLite and Authelia OIDC
 type: application
-version: 0.1.2
+version: 0.1.3
 appVersion: "26.11.0"
 
 home: https://actualbudget.org

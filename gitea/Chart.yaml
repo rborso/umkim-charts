@@ -2,7 +2,7 @@ apiVersion: v2
 name: gitea
 description: UMKIM-tailored Gitea stack (Gitea, Postgres, valkey) with an LLDAP-backed bootstrap
 type: application
-version: 0.1.22
+version: 0.1.23
 appVersion: "28.4.0"
 
 home: https://github.com/rborso/umkim-thin

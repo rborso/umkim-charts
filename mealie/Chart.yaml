@@ -2,7 +2,7 @@ apiVersion: v2
 name: mealie
 description: Mealie recipe manager with PostgreSQL and Authelia OIDC
 type: application
-version: 0.1.6
+version: 0.1.7
 appVersion: "3.31.0"
 
 home: https://github.com/rborso/umkim-thin
