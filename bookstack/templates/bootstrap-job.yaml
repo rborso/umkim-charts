@@ -61,6 +61,17 @@ spec:
           command: ["/bin/sh", "-ec"]
           args:
             - |
+              # The image's s6 init would normally build this tree in /config, but
+              # a Job gets an empty emptyDir and never runs that init. Laravel
+              # writes storage/logs (a symlink into /config/log/bookstack) before
+              # it logs anything, so without these it dies with "could not be
+              # opened in append mode" and never reaches artisan.
+              mkdir -p \
+                /config/www/uploads /config/www/files /config/www/images /config/www/themes \
+                /config/www/framework/cache /config/www/framework/sessions \
+                /config/www/framework/views /config/www/framework/purifier \
+                /config/backups /config/log/bookstack
+              [ -f /config/www/.env ] || cp /app/www/.env.example /config/www/.env
               cd /app/www
               # The password is passed through the environment, not as an
               # argument: `--password=...` would be visible in the pod spec to
