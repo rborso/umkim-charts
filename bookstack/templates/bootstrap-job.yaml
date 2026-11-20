@@ -118,10 +118,14 @@ spec:
                   name: {{ .Release.Name }}-secrets
                   key: admin-password
           volumeMounts:
-            # Uploads live here; artisan touches the storage tree on boot.
-            - { name: data, mountPath: /config }
+            # Its OWN scratch space, not the app's data PVC. That PVC is
+            # ReadWriteOnce, and on Longhorn a second pod mounting it never
+            # schedules: the Job sat in FailedAttachVolume waiting for a detach
+            # that cannot happen while the app is running (found on ha-dev).
+            # artisan only needs a writable storage tree; it does not need the
+            # app's uploads.
+            - { name: scratch, mountPath: /config }
       volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: {{ .Release.Name }}-data
+        - name: scratch
+          emptyDir: {}
 {{- end }}

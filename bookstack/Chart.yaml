@@ -2,7 +2,7 @@ apiVersion: v2
 name: bookstack
 description: BookStack wiki with MariaDB and Authelia OIDC
 type: application
-version: 0.1.2
+version: 0.1.3
 appVersion: "26.09.3"
 
 home: https://github.com/rborso/umkim-thin
