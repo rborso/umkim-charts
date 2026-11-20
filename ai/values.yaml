@@ -21,6 +21,17 @@ webui:
   # directory user, which a single-tenant install does not want.
   defaultUserRole: "user"
   allowSignup: false
+  # Open WebUI refuses every API call until it has one user, so a fresh install
+  # with only OIDC is unusable: /api/config reports onboarding, /api/models is
+  # 401, and the SSO landing page has nobody to become. These seed the first
+  # admin from the environment (WEBUI_ADMIN_EMAIL/PASSWORD), which is the
+  # supported bootstrap. OIDC signup stays enabled for everyone after, because
+  # ENABLE_OAUTH_SIGNUP is a separate switch from ui.enable_signup.
+  admin:
+    email: ""
+    # Empty generates a random password on install (stored in the release Secret).
+    password: ""
+    name: "Admin"
   persistence:
     size: 2Gi
     storageClass: ""

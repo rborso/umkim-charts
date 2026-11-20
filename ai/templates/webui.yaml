@@ -100,6 +100,20 @@ spec:
               value: {{ .Values.webui.allowSignup | quote }}
             - name: DEFAULT_USER_ROLE
               value: {{ .Values.webui.defaultUserRole | quote }}
+            {{- with .Values.webui.admin.email }}
+            # Seeds the first admin. Open WebUI answers 401 on every API call
+            # until one user exists, so an OIDC-only install with nobody seeded
+            # is unusable: the SSO landing page has no account to become.
+            - name: WEBUI_ADMIN_EMAIL
+              value: {{ . | quote }}
+            - name: WEBUI_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-secrets
+                  key: admin-password
+            - name: WEBUI_ADMIN_NAME
+              value: {{ $.Values.webui.admin.name | quote }}
+            {{- end }}
             - name: ENABLE_WEB_SEARCH
               value: "false"
             # Attach the signed-in identity to every upstream request. This is how
