@@ -1,0 +1,52 @@
+{{- if .Values.litellm.enabled }}
+{{- /*
+The pool is generated from `models` x `backends`: one model_list entry per
+backend, all sharing the model_name, which is what makes it a pool. Writing this
+by hand would let it drift from the chart (and the commonest failure is a model
+name the backend does not answer to).
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-litellm-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: litellm
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  config.yaml: |
+    model_list:
+    {{- range $m := .Values.models }}
+    {{- range $b := $.Values.backends }}
+      - model_name: {{ $m.name | quote }}
+        litellm_params:
+          model: {{ printf "openai/%s" $m.upstreamModel | quote }}
+          api_base: {{ printf "http://%s:8080/v1" $b.name | quote }}
+          # llama.cpp has no auth of its own; the gateway is the auth boundary.
+          api_key: "none"
+          weight: 1
+    {{- end }}
+    {{- end }}
+
+    router_settings:
+      routing_strategy: {{ .Values.litellm.routing.strategy | quote }}
+      num_retries: {{ .Values.litellm.routing.numRetries }}
+      allowed_fails: {{ .Values.litellm.routing.allowedFails }}
+      cooldown_time: {{ .Values.litellm.routing.cooldownTime }}
+      request_timeout: {{ .Values.litellm.routing.requestTimeout }}
+      {{- if .Values.litellm.routing.sessionAffinity }}
+      # Session affinity, keyed on thread-local session ids. This is NOT
+      # deployment_affinity: that pins per API key, so every request from one key
+      # would land on one backend and the pool would stop balancing.
+      optional_pre_call_checks:
+        - session_affinity
+      deployment_affinity_ttl_seconds: {{ .Values.litellm.routing.affinityTTLSeconds }}
+      {{- end }}
+      {{- if .Values.litellm.redis.enabled }}
+      redis_host: {{ printf "%s-litellm-redis" .Release.Name | quote }}
+      redis_port: "6379"
+      {{- end }}
+
+    general_settings:
+      master_key: os.environ/LITELLM_MASTER_KEY
+{{- end }}

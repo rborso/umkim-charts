@@ -1,0 +1,78 @@
+{{- if and .Values.litellm.enabled .Values.litellm.redis.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ .Release.Name }}-redis
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.litellm.redis.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.litellm.redis.persistence.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-litellm-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: litellm-redis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: litellm-redis
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: litellm-redis
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.litellm.redis.image | quote }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: redis, containerPort: 6379 }
+          args: ["--save", "60", "1", "--appendonly", "no"]
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-litellm-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: litellm-redis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    app.kubernetes.io/name: litellm-redis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+{{- end }}

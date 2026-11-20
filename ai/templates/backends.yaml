@@ -1,0 +1,182 @@
+{{- /*
+One Deployment + Service + model volume PER backend entry.
+
+They are separate Deployments, not replicas of one: LiteLLM balances across
+api_base entries, so a single Service with two replicas would look like one
+backend to the router and both pooling and session affinity would silently do
+nothing. Adding a machine is adding an entry here.
+*/ -}}
+{{- $root := . }}
+{{- range .Values.backends }}
+{{- $b := . }}
+{{- /* A catalog entry may override a backend without repeating every
+       field, so gpu is optional here rather than assumed present. */ -}}
+{{- $gpu := $b.gpu | default dict }}
+{{- $isGPU := eq (toString ($gpu.enabled | default false)) "true" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ $b.name }}-models
+  namespace: {{ $root.Release.Namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with $b.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $b.persistence.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $b.name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: llamacpp
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $b.name }}
+spec:
+  replicas: 1
+  # The model volume is ReadWriteOnce and holds GB of weights: recreate rather
+  # than roll, so the replacement pod does not race the old one for the volume.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: llamacpp
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: {{ $b.name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: llamacpp
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        app.kubernetes.io/component: {{ $b.name }}
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        {{- with $b.models }}
+        # Fetch only what is missing, with a bounded timeout: an install must not
+        # hang on a multi-GB download, and a reinstall must not re-fetch.
+        - name: fetch-models
+          image: docker.io/library/alpine:3.22.1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              set -e
+              apk add --no-cache curl >/dev/null 2>&1
+              {{- range . }}
+              if [ ! -s /models/{{ .name }}.gguf ]; then
+                echo "fetching {{ .name }}"
+                curl -fL --retry 2 --connect-timeout 20 --max-time 1800 \
+                  -o /models/{{ .name }}.gguf.part "{{ .url }}"
+                mv /models/{{ .name }}.gguf.part /models/{{ .name }}.gguf
+              else
+                echo "{{ .name }} already present"
+              fi
+              {{- end }}
+          volumeMounts:
+            - { name: models, mountPath: /models }
+        {{- end }}
+      containers:
+        - name: llamacpp
+          # The CPU build cannot use a GPU, so the image follows gpu.enabled.
+          image: {{ ternary ($gpu.image | default "ghcr.io/ggml-org/llama.cpp:server-cuda") $b.image $isGPU | quote }}
+          imagePullPolicy: {{ $b.imagePullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - { name: http, containerPort: 8080 }
+          args:
+            # Router mode: serve every GGUF in the directory, loading on demand.
+            - --models-dir
+            - /models
+            - --models-max
+            - {{ $b.modelsMax | quote }}
+            - --models-memory-margin
+            - {{ $b.modelsMemoryMargin | quote }}
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8080"
+            - --ctx-size
+            - {{ $b.ctxSize | quote }}
+            - --parallel
+            - {{ $b.parallel | quote }}
+            {{- if gt (int $b.threads) 0 }}
+            - --threads
+            - {{ $b.threads | quote }}
+            {{- end }}
+            {{- with $b.preload }}
+            # Eager-load one model, so the first user request does not pay for it.
+            - --alias
+            - {{ . | quote }}
+            {{- end }}
+            {{- if $isGPU }}
+            # Offload everything. On a CPU-only node the layer count is 0, which
+            # is why the default does not pass this at all.
+            - --n-gpu-layers
+            - "999"
+            - --split-mode
+            - {{ $gpu.splitMode | default "layer" | quote }}
+            {{- with $gpu.tensorSplit }}
+            - --tensor-split
+            - {{ . | quote }}
+            {{- end }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            # Loading a model into RAM takes a while on CPU.
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          resources:
+            {{- if $isGPU }}
+            {{- $r := deepCopy $b.resources }}
+            {{- $_ := set (index $r "limits") "nvidia.com/gpu" (int ($gpu.count | default 1)) }}
+            {{- toYaml $r | nindent 12 }}
+            {{- else }}
+            {{- toYaml $b.resources | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - { name: models, mountPath: /models }
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ $b.name }}-models
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $b.name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: llamacpp
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $b.name }}
+spec:
+  selector:
+    app.kubernetes.io/name: llamacpp
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $b.name }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+{{- end }}

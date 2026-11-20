@@ -1,0 +1,172 @@
+{{- if .Values.webui.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ .Release.Name }}-webui
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.webui.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.webui.persistence.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-webui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: openwebui
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  # The data PVC is ReadWriteOnce: recreate rather than roll.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openwebui
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openwebui
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      {{- with .Values.webui.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: ca-bundle
+          image: docker.io/library/alpine:3.22.1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              if [ -f /etc/ssl/umkim-thin/ca.crt ]; then
+                cat /etc/ssl/certs/ca-certificates.crt /etc/ssl/umkim-thin/ca.crt > /etc/ssl/combined/ca.crt
+              else
+                cp /etc/ssl/certs/ca-certificates.crt /etc/ssl/combined/ca.crt
+              fi
+          volumeMounts:
+            - { name: ca, mountPath: /etc/ssl/umkim-thin, readOnly: true }
+            - { name: combined-ca, mountPath: /etc/ssl/combined }
+      containers:
+        - name: openwebui
+          image: {{ .Values.webui.image | quote }}
+          imagePullPolicy: {{ .Values.webui.imagePullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - name: WEBUI_URL
+              value: {{ .Values.webui.externalUrl | quote }}
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: webui-secret
+            - name: DATA_DIR
+              value: /app/backend/data
+            # The gateway is the only backend this front end knows about: LiteLLM
+            # pools the machines, so it never grows a list of nodes.
+            - name: OPENAI_API_BASE_URLS
+              value: {{ printf "http://%s-litellm:%d/v1" .Release.Name (int .Values.litellm.servicePort) | quote }}
+            - name: OPENAI_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: master-key
+            - name: ENABLE_OPENAI_API
+              value: "true"
+            - name: ENABLE_SIGNUP
+              value: {{ .Values.webui.allowSignup | quote }}
+            - name: DEFAULT_USER_ROLE
+              value: {{ .Values.webui.defaultUserRole | quote }}
+            - name: ENABLE_WEB_SEARCH
+              value: "false"
+            # Attach the signed-in identity to every upstream request. This is how
+            # a request carries a per-user session id for LiteLLM's affinity;
+            # without it the router sees anonymous requests and affinity silently
+            # does nothing (which looks identical to affinity working).
+            - name: ENABLE_FORWARD_USER_INFO_HEADERS
+              value: "true"
+            {{- if .Values.webui.oidc.enabled }}
+            - name: ENABLE_OAUTH_SIGNUP
+              value: "true"
+            - name: OAUTH_CLIENT_ID
+              value: {{ .Values.webui.oidc.clientId | quote }}
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: oidc-client-secret
+            - name: OPENID_PROVIDER_URL
+              value: {{ printf "%s/.well-known/openid-configuration" (trimSuffix "/" .Values.webui.oidc.issuerUrl) | quote }}
+            - name: OAUTH_SCOPES
+              value: {{ .Values.webui.oidc.scopes | quote }}
+            - name: OAUTH_PROVIDER_NAME
+              value: {{ .Values.webui.oidc.providerName | quote }}
+            {{- end }}
+            - name: SSL_CERT_FILE
+              value: /etc/ssl/combined/ca.crt
+            - name: REQUESTS_CA_BUNDLE
+              value: /etc/ssl/combined/ca.crt
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          volumeMounts:
+            - { name: data, mountPath: /app/backend/data }
+            - { name: combined-ca, mountPath: /etc/ssl/combined, readOnly: true }
+          resources:
+            {{- toYaml .Values.webui.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-webui
+        - name: ca
+          configMap:
+            name: umkim-thin-ca
+            optional: true
+        - name: combined-ca
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-webui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: openwebui
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    app.kubernetes.io/name: openwebui
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+{{- end }}

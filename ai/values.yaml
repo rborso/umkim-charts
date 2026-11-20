@@ -1,0 +1,127 @@
+namespaceOverride: ""
+
+# ---------------------------------------------------------------------------
+# The stack, in the order a request flows through it:
+#
+#   Open WebUI  ->  LiteLLM  ->  llama.cpp backend(s)
+#
+# Open WebUI is the only thing with a route. LiteLLM is the single entrypoint
+# that pools backends; it is not exposed. Each backend is its own Deployment and
+# Service, NOT replicas of one, because LiteLLM balances across `api_base`
+# entries - one Service with two replicas would look like a single backend to
+# the router, so pooling and session affinity would both silently do nothing.
+# ---------------------------------------------------------------------------
+
+# Open WebUI: the chat front end.
+webui:
+  enabled: true
+  image: ghcr.io/open-webui/open-webui:v0.13.4
+  imagePullPolicy: IfNotPresent
+  # New users land here. "pending" would need an admin to approve every
+  # directory user, which a single-tenant install does not want.
+  defaultUserRole: "user"
+  allowSignup: false
+  persistence:
+    size: 2Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { memory: 2Gi }
+  oidc:
+    enabled: false
+    issuerUrl: ""
+    clientId: "openwebui"
+    clientSecret: ""
+    providerName: "Authelia"
+    scopes: "openid email profile"
+
+# The gateway. Always deployed; it is what makes "one URL, many backends" true.
+litellm:
+  enabled: true
+  # Pinned to a stable release tag, never :latest or :main. session_affinity is
+  # in this line, and a moving tag would mean the behaviour that was tested is
+  # not the behaviour an install gets. (The plan expected 1.100, which the
+  # project never published; 1.83.7 is current stable and does have it.)
+  image: ghcr.io/berriai/litellm:main-v1.83.7-stable
+  imagePullPolicy: IfNotPresent
+  servicePort: 4000
+  masterKey: ""
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+  routing:
+    # simple-shuffle is what upstream recommends for production.
+    strategy: simple-shuffle
+    # Session affinity: a request that carries a session id stays on one
+    # backend. NEVER deployment_affinity: it pins per API key, so every request
+    # from one key would land on one backend and the pool would stop balancing.
+    sessionAffinity: true
+    affinityTTLSeconds: 3600
+    numRetries: 2
+    allowedFails: 2
+    cooldownTime: 30
+    # Time-boxed so a slow CPU backend cannot hang a client forever.
+    requestTimeout: 300
+  # Off by default: one replica needs neither, and the affinity store lives in
+  # the router's own cache. Turn it on for more than one replica.
+  redis:
+    enabled: false
+    image: docker.io/library/redis:7.4.1-alpine
+    persistence:
+      size: 1Gi
+      storageClass: ""
+
+# The inference backends. Each entry is one llama.cpp server (one pod, one
+# volume, one Service). Add a second entry to spread the same model across two
+# machines - that is the whole of Phase B.
+backends:
+  - name: llama-a
+    # CPU build. The CUDA variant is a different tag and is part of the GPU
+    # opt-in: the CPU build has no CUDA support, so requesting a GPU with it
+    # would schedule a pod that cannot use the card.
+    image: ghcr.io/ggml-org/llama.cpp:server
+    imagePullPolicy: IfNotPresent
+    # GPU opt-in per backend. Off means CPU-only with NO device resource, which
+    # must keep working on a cluster with no driver and no device plugin.
+    gpu:
+      enabled: false
+      # The CUDA image, used only when gpu.enabled is set.
+      image: ghcr.io/ggml-org/llama.cpp:server-cuda
+      count: 1
+      # layer (default, pipeline-parallel, tolerant of a slow interconnect) or
+      # tensor (experimental; splits weights AND KV, needs a fast interconnect).
+      splitMode: layer
+      # Proportions per card, e.g. "3,1". Empty splits by memory.
+      tensorSplit: ""
+    # Models this backend serves. Each is downloaded into the volume if missing,
+    # with a bounded timeout so an install cannot hang on a multi-GB fetch.
+    models:
+      - name: qwen2.5-0.5b-instruct-q4_k_m
+        url: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf
+    # Router mode: one process serves every model in the directory, loading on
+    # demand. That is why this is one llama.cpp per node, not per model.
+    modelsMax: 2
+    modelsMemoryMargin: 256
+    # Load one eagerly so the first user request does not pay the load cost.
+    preload: qwen2.5-0.5b-instruct-q4_k_m
+    ctxSize: 2048
+    parallel: 1
+    # 0 lets llama.cpp decide from the cgroup limit.
+    threads: 0
+    persistence:
+      size: 4Gi
+      storageClass: ""
+    resources:
+      requests: { cpu: 500m, memory: 1Gi }
+      limits: { memory: 2Gi }
+
+# The models the gateway publishes. A repeated `name` across backends forms a
+# pool; distinct names appear separately in the picker.
+#
+# `upstreamModel` must be the id the backend answers to. In router mode
+# llama.cpp names a model after its FILE, so this is the GGUF filename without
+# .gguf - get it wrong and every request 404s against a name the backend does
+# not know.
+models:
+  - name: qwen2.5-0.5b-instruct
+    upstreamModel: qwen2.5-0.5b-instruct-q4_k_m
