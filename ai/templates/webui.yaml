@@ -144,9 +144,17 @@ spec:
             - name: OAUTH_PROVIDER_NAME
               value: {{ .Values.webui.oidc.providerName | quote }}
             {{- end }}
+            # Python's own knobs. SSL_CERT_FILE covers the stdlib and requests;
+            # httpx does NOT honour it (it loads certifi), which is why the SSO
+            # client still rejected the issuer's chain.
             - name: SSL_CERT_FILE
               value: /etc/ssl/combined/ca.crt
             - name: REQUESTS_CA_BUNDLE
+              value: /etc/ssl/combined/ca.crt
+            # ...and this is the one its OIDC client actually uses: aiohttp's
+            # session takes a CA bundle path here, which is what makes discovery
+            # and the token exchange trust the lab/staging chain.
+            - name: AIOHTTP_CLIENT_SESSION_SSL
               value: /etc/ssl/combined/ca.crt
           readinessProbe:
             httpGet:
