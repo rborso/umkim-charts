@@ -105,17 +105,21 @@ spec:
             - --models-dir
             - /models
             - --models-max
-            - {{ $b.modelsMax | quote }}
+            - {{ $b.modelsMax | default 2 | quote }}
+            {{- /* llama.cpp parses this with stoi, so an empty value is a hard
+                   startup error rather than "use the default". A catalog entry
+                   that overrides a backend without repeating every field must
+                   still render a valid number here. */}}
             - --models-memory-margin
-            - {{ $b.modelsMemoryMargin | quote }}
+            - {{ $b.modelsMemoryMargin | default 0 | quote }}
             - --host
             - 0.0.0.0
             - --port
             - "8080"
             - --ctx-size
-            - {{ $b.ctxSize | quote }}
+            - {{ $b.ctxSize | default 2048 | quote }}
             - --parallel
-            - {{ $b.parallel | quote }}
+            - {{ $b.parallel | default 1 | quote }}
             {{- if gt (int $b.threads) 0 }}
             - --threads
             - {{ $b.threads | quote }}
