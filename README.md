@@ -87,7 +87,7 @@ git clone git@github.com:rborso/umkim-charts.git
 ```
 
 ```bash
-for chart in actualbudget gitea homebox immich mealie miniflux nextcloud paperless sparkyfitness servarr vaultwarden; do
+for chart in actualbudget gitea homebox immich mealie nextcloud paperless sparkyfitness servarr vaultwarden; do
   helm lint "$chart"
   helm package "$chart" --destination /tmp/charts
 done
