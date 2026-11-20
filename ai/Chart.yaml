@@ -2,7 +2,7 @@ apiVersion: v2
 name: ai
 description: Self-hosted AI stack - Open WebUI, LiteLLM gateway, and pooled llama.cpp backends
 type: application
-version: 0.1.4
+version: 0.1.5
 appVersion: "1.83.7"
 
 home: https://github.com/rborso/umkim-thin

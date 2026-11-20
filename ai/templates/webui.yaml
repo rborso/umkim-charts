@@ -41,7 +41,15 @@ spec:
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-      {{- with .Values.webui.hostAliases }}
+      {{- /*
+      The console sets a TOP-LEVEL hostAliases (ip: Traefik's ClusterIP; hostnames:
+      this app's public host plus the portal). Read webui.hostAliases first, then
+      fall back to the top-level key - with only the nested one, the issuer
+      resolved to the public DDNS address and the OIDC client rejected its
+      certificate, which reads as a CA problem and is not one.
+      */}}
+      {{- $aliases := .Values.webui.hostAliases | default .Values.hostAliases }}
+      {{- with $aliases }}
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
