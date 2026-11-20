@@ -34,6 +34,28 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # The app crash-looped on a fresh install: it started before Postgres was
+      # accepting connections and exited on "Could not connect to db". It recovers
+      # on restart, but a fresh install should not need to crash first.
+      initContainers:
+        - name: wait-for-postgres
+          image: {{ .Values.bootstrap.probeImage | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              i=0
+              while [ "$i" -lt 60 ]; do
+                if nc -z {{ .Release.Name }}-postgres 5432 2>/dev/null; then exit 0; fi
+                i=$((i+1)); sleep 2
+              done
+              echo "postgres did not answer within 120s" >&2
+              exit 1
       # Vikunja's image is FROM scratch: no shell, and only the CA bundle it
       # ships. Give it the platform CA so OIDC discovery and the token exchange
       # trust the issuer when the lab CA is the only trust anchor. The helper
@@ -80,9 +102,10 @@ spec:
                   name: {{ .Release.Name }}-secrets
                   key: postgres-password
             {{- if .Values.oidc.enabled }}
-            # The provider map comes from the config file; only the client secret
-            # uses the .file indirection (verified: without this env the app
-            # drops the provider for a missing 'clientsecret').
+            # Only the client secret uses the .file indirection; the rest of the
+            # provider comes from config.yml. Verified in a container: without
+            # this env the app logs "required key 'clientsecret' is missing" and
+            # drops the provider.
             - name: VIKUNJA_AUTH_OPENID_PROVIDERS_{{ upper .Values.oidc.providerKey }}_CLIENTSECRET_FILE
               value: /etc/vikunja-oidc/client-secret
             {{- end }}
