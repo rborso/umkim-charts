@@ -98,6 +98,11 @@ spec:
               value: "true"
             - name: ENABLE_SIGNUP
               value: {{ .Values.webui.allowSignup | quote }}
+            # Without this, a non-admin user gets an empty model list even though
+            # the gateway answered: Open WebUI filters gateway models through its
+            # own (empty) access-control table.
+            - name: BYPASS_MODEL_ACCESS_CONTROL
+              value: {{ .Values.webui.bypassModelAccessControl | quote }}
             - name: DEFAULT_USER_ROLE
               value: {{ .Values.webui.defaultUserRole | quote }}
             {{- with .Values.webui.admin.email }}

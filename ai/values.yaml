@@ -32,6 +32,12 @@ webui:
     # Empty generates a random password on install (stored in the release Secret).
     password: ""
     name: "Admin"
+  # A regular user sees NO models unless each model has an access-control grant.
+  # Open WebUI fetches the models from the gateway and then filters them through
+  # its own model table, which is empty on a fresh install - so the chat page is
+  # blank for everyone except an admin. On a single-tenant install the household
+  # users are meant to share the gateway, so bypass that filter.
+  bypassModelAccessControl: true
   persistence:
     size: 2Gi
     storageClass: ""
