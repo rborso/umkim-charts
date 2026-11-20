@@ -12,6 +12,7 @@ repository does not vendor upstream application source.
 | `gitea` | Apache-2.0 |
 | `homebox` | Apache-2.0 |
 | `immich` | Apache-2.0 |
+| `miniflux` | Apache-2.0 |
 | `nextcloud` | Apache-2.0 |
 | `paperless` | Apache-2.0 |
 | `sparkyfitness` | Apache-2.0 |
@@ -67,6 +68,13 @@ its upstream sources. Packaged chart archives include `LICENSE` and `NOTICE`.
 | VectorChord | AGPL-3.0 or Elastic-2.0 (dual) | https://github.com/tensorchord/VectorChord |
 | PostgreSQL | PostgreSQL License | https://www.postgresql.org/about/licence/ |
 | Valkey | BSD-3-Clause | https://github.com/valkey-io/valkey |
+
+### Miniflux
+
+| Component | License | Source |
+|---|---|---|
+| Miniflux | Apache-2.0 | https://github.com/miniflux/v2 |
+| PostgreSQL | PostgreSQL License | https://www.postgresql.org/about/licence/ |
 
 ### Paperless-ngx
 
