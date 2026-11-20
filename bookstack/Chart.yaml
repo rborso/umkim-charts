@@ -1,0 +1,17 @@
+apiVersion: v2
+name: bookstack
+description: BookStack wiki with MariaDB and Authelia OIDC
+type: application
+version: 0.1.0
+appVersion: "26.09.3"
+
+home: https://github.com/rborso/umkim-thin
+sources:
+  - https://github.com/rborso/umkim-thin
+  - https://github.com/BookStackApp/BookStack
+  - https://mariadb.org/
+maintainers:
+  - name: Robert Borso
+    url: https://github.com/rborso
+annotations:
+  artifacthub.io/license: Apache-2.0

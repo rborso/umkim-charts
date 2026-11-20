@@ -1,0 +1,169 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: bookstack
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  # The data PVC is ReadWriteOnce: a rolling update would schedule the new pod
+  # before the old one releases the volume and it would hang in
+  # FailedAttachVolume until the upgrade deadline.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bookstack
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bookstack
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # The container starts its entrypoint (migrations, then php-fpm/nginx)
+      # before MariaDB may accept connections, and the entrypoint does not retry
+      # forever. Wait for the port so a fresh install does not depend on the
+      # crash-loop backoff.
+      initContainers:
+        - name: wait-for-database
+          image: {{ .Values.bootstrap.probeImage | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              i=0
+              while [ "$i" -lt 90 ]; do
+                if nc -z {{ .Release.Name }}-database 3306 2>/dev/null; then exit 0; fi
+                i=$((i+1)); sleep 2
+              done
+              echo "database did not answer within 180s" >&2
+              exit 1
+        - name: ca-bundle
+          image: {{ .Values.bootstrap.probeImage | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              if [ -f /etc/ssl/umkim-thin/ca.crt ]; then
+                cat /etc/ssl/certs/ca-certificates.crt /etc/ssl/umkim-thin/ca.crt > /etc/ssl/combined/ca.crt
+              else
+                cp /etc/ssl/certs/ca-certificates.crt /etc/ssl/combined/ca.crt
+              fi
+          volumeMounts:
+            - { name: ca, mountPath: /etc/ssl/umkim-thin, readOnly: true }
+            - { name: combined-ca, mountPath: /etc/ssl/combined }
+      containers:
+        - name: bookstack
+          image: {{ .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - { name: http, containerPort: 80 }
+          env:
+            - name: TZ
+              value: {{ .Values.timezone | quote }}
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: APP_URL
+              value: {{ .Values.externalUrl | quote }}
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: app-key
+            - name: DB_HOST
+              value: {{ printf "%s-database" .Release.Name | quote }}
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: {{ .Values.database.name | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.database.username | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: database-password
+            - name: STORAGE_TYPE
+              value: "local"
+            # Search and sessions stay in the database by default; that keeps the
+            # deployment to one container and a single PVC.
+            - name: SESSION_DRIVER
+              value: "database"
+            - name: QUEUE_CONNECTION
+              value: "sync"
+            - name: AUTH_METHOD
+              value: {{ ternary "oidc" "standard" .Values.oidc.enabled | quote }}
+            {{- if .Values.oidc.enabled }}
+            - name: OIDC_NAME
+              value: {{ .Values.oidc.displayName | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ .Values.oidc.clientId | quote }}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: oidc-client-secret
+            - name: OIDC_ISSUER
+              value: {{ trimSuffix "/" .Values.oidc.issuerUrl | quote }}
+            - name: OIDC_ISSUER_DISCOVER
+              value: {{ .Values.oidc.issuerDiscover | quote }}
+            - name: OIDC_DISPLAY_NAME_CLAIMS
+              value: {{ .Values.oidc.displayNameClaims | quote }}
+            - name: OIDC_USER_TO_GROUPS
+              value: {{ .Values.oidc.userToGroups | quote }}
+            # BookStack is PHP: point its CA bundle at the combined file so
+            # discovery and the token exchange trust the issuer.
+            - name: SSL_CERT_FILE
+              value: "/etc/ssl/combined/ca.crt"
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - { name: data, mountPath: /config }
+            - { name: combined-ca, mountPath: /etc/ssl/combined, readOnly: true }
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+        - name: ca
+          configMap:
+            name: umkim-thin-ca
+            optional: true
+        - name: combined-ca
+          emptyDir: {}

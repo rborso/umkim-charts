@@ -1,0 +1,118 @@
+{{- if .Values.bootstrap.enabled }}
+# Creates the breakglass admin account.
+#
+# `bookstack:create-admin --initial` updates the seeded admin@admin.com account
+# instead of adding a second admin, and --generate-password prints ONLY the
+# password on stdout - it is the sole output, so it can be captured directly.
+# Verified in a container: the first run prints the password and exits 0.
+#
+# A rerun prints "Non-default admin user already exists. Skipping creation of
+# new admin user." and exits 2. That is success for this Job (the admin and its
+# keep-annotated password both still exist), so exit 2 is accepted - otherwise
+# every upgrade would fail the release.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-bootstrap
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: bookstack-bootstrap
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: {{ .Values.bootstrap.hookDeletePolicy }}
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bookstack-bootstrap
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      initContainers:
+        - name: wait-for-app
+          image: {{ .Values.bootstrap.probeImage | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              i=0
+              while [ "$i" -lt 90 ]; do
+                if nc -z {{ .Release.Name }} 80 2>/dev/null; then exit 0; fi
+                i=$((i+1)); sleep 2
+              done
+              echo "bookstack did not answer within 180s" >&2
+              exit 1
+      containers:
+        - name: bootstrap
+          # The linuxserver image has a shell and artisan, so the command runs
+          # in-place against the same database and storage the app uses.
+          image: {{ .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              cd /app/www
+              # The password is passed through the environment, not as an
+              # argument: `--password=...` would be visible in the pod spec to
+              # anyone who can read pods in this namespace.
+              out=$(php artisan bookstack:create-admin \
+                --initial \
+                --email={{ .Values.bootstrap.adminEmail | quote }} \
+                --name={{ .Values.bootstrap.adminName | quote }} \
+                --password="$ADMIN_PASSWORD" 2>&1) && rc=0 || rc=$?
+              printf '%s\n' "$out"
+              case "$rc" in
+                0) echo "bootstrap admin created" ;;
+                2) echo "bootstrap admin already present; nothing to do" ;;
+                *) echo "bookstack:create-admin failed (exit $rc)" >&2; exit "$rc" ;;
+              esac
+          env:
+            - name: TZ
+              value: {{ .Values.timezone | quote }}
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: APP_URL
+              value: {{ .Values.externalUrl | quote }}
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: app-key
+            - name: DB_HOST
+              value: {{ printf "%s-database" .Release.Name | quote }}
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: {{ .Values.database.name | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.database.username | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: database-password
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: admin-password
+          volumeMounts:
+            # Uploads live here; artisan touches the storage tree on boot.
+            - { name: data, mountPath: /config }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+{{- end }}

@@ -1,0 +1,83 @@
+namespaceOverride: ""
+
+# linuxserver image: nginx + php-fpm, listens on 80, and its entrypoint runs
+# Laravel's migrations on start.
+image: docker.io/linuxserver/bookstack:26.09.3
+imagePullPolicy: IfNotPresent
+timezone: "UTC"
+
+# Extra environment variables for the BookStack container. BookStack is
+# configured entirely through the environment, so most things need no chart
+# change.
+extraEnv: []
+
+# Public URL, e.g. https://bookstack.example.com. BookStack uses this for
+# redirects and OIDC callbacks, and a wrong value sends logins to the wrong host.
+externalUrl: ""
+# UMKIM sets this so the app reaches its public host and the portal through
+# Traefik, even when the cluster cannot hairpin to the public address.
+hostAliases: []
+
+# Laravel's APP_KEY. Empty generates one on install and keeps it (the Secret is
+# keep-annotated), because rotating it invalidates every session and encrypted
+# cookie.
+appKey: ""
+
+persistence:
+  # /config holds the uploaded images and attachments and the app's own
+  # .env-derived state. BookStack keeps uploads in the database by default, but
+  # images go to disk.
+  data:
+    size: 5Gi
+    storageClass: ""
+
+database:
+  image: docker.io/library/mariadb:11.4
+  imagePullPolicy: IfNotPresent
+  name: bookstack
+  username: bookstack
+  # Empty generates a random password on install (stored in the release Secret).
+  password: ""
+  rootPassword: ""
+  persistence:
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { memory: 1Gi }
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { memory: 1Gi }
+
+# The bootstrap Job creates the breakglass admin.
+#
+# `bookstack:create-admin` with --initial updates the seeded admin@admin.com
+# account rather than adding a second one, and --generate-password prints ONLY
+# the password on stdout. A rerun prints "Non-default admin user already exists.
+# Skipping creation" and exits 2, so the Job tolerates that exit code.
+bootstrap:
+  enabled: true
+  adminEmail: ""
+  adminName: "Admin"
+  # Empty generates a random password on install (stored in the release Secret).
+  adminPassword: ""
+  hookDeletePolicy: before-hook-creation
+  # The app image has a shell, so no helper image is needed for the probe.
+  probeImage: docker.io/library/alpine:3.22.1
+
+# OIDC via Authelia. BookStack reads these from the environment.
+oidc:
+  enabled: false
+  issuerUrl: ""
+  clientId: "bookstack"
+  clientSecret: ""
+  # Shown on the login button.
+  displayName: "Authelia"
+  # Which claim(s) to use for the user's display name.
+  displayNameClaims: "name"
+  # BookStack needs the issuer to be https and does discovery on start.
+  issuerDiscover: true
+  # Single-tenant: do not map directory groups onto BookStack roles. Leaving it
+  # off means role drift in the directory cannot lock someone out of the wiki.
+  userToGroups: false
