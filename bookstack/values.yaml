@@ -23,6 +23,12 @@ hostAliases: []
 # cookie.
 appKey: ""
 
+# Which proxies to trust for X-Forwarded-* headers. The pod is only reachable
+# through Traefik, so "*" is correct here and is what makes TLS termination work:
+# without it BookStack marks its session cookie Secure while receiving plain HTTP
+# from the ingress, and every login appears to succeed but no session sticks.
+appProxies: "*"
+
 persistence:
   # /config holds the uploaded images and attachments and the app's own
   # .env-derived state. BookStack keeps uploads in the database by default, but
@@ -81,3 +87,8 @@ oidc:
   # Single-tenant: do not map directory groups onto BookStack roles. Leaving it
   # off means role drift in the directory cannot lock someone out of the wiki.
   userToGroups: false
+  # Role given to a self-registered (OIDC) user. BookStack ships with
+  # registration-role unset, and its attachDefaultRole() then does nothing - so
+  # an OIDC user gets no role at all and cannot create anything. 2 is the
+  # built-in Editor role; 3 (Viewer) can only read.
+  registrationRole: 2

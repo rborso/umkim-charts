@@ -91,6 +91,14 @@ spec:
               value: "1000"
             - name: APP_URL
               value: {{ .Values.externalUrl | quote }}
+            # Traefik terminates TLS and forwards plain HTTP, so BookStack must be
+            # told to trust the proxy headers. With app.proxies empty the app does
+            # not see X-Forwarded-Proto, decides the request is insecure, marks its
+            # session cookie Secure - and the browser then refuses to send it back.
+            # The symptom is a login that returns 302 and a session that never
+            # sticks, which is exactly what the gate caught.
+            - name: APP_PROXIES
+              value: {{ .Values.appProxies | default "*" | quote }}
             - name: APP_KEY
               valueFrom:
                 secretKeyRef:
