@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: vikunja
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  config.yml: |
+    service:
+      # The public URL, so OIDC redirects and password-reset links point at the
+      # host a user actually types. Vikunja requires the scheme and appends '/'.
+      publicurl: {{ .Values.externalUrl | quote }}
+      enableregistration: {{ .Values.allowRegistration }}
+      # Behind Traefik: the app is never reached directly, and the ingress
+      # terminates TLS.
+      interface: ":3456"
+
+    database:
+      type: postgres
+      host: {{ printf "%s-postgres" .Release.Name | quote }}
+      port: 5432
+      database: {{ .Values.postgres.database | quote }}
+      user: {{ .Values.postgres.username | quote }}
+      # password is injected from the Secret as VIKUNJA_DATABASE_PASSWORD so it
+      # never lands in a ConfigMap.
+
+    auth:
+      local:
+        enabled: {{ .Values.allowLocalLogin }}
+    {{- if .Values.oidc.enabled }}
+
+      openid:
+        enabled: true
+        # A map, not a scalar: this is why the chart renders a config file.
+        # Required keys per the upstream loader are name, authurl, clientid and
+        # clientsecret; anything else it does not recognise is ignored.
+        providers:
+          {{ .Values.oidc.providerKey }}:
+            name: {{ .Values.oidc.providerName | quote }}
+            authurl: {{ trimSuffix "/" .Values.oidc.issuerUrl | quote }}
+            clientid: {{ .Values.oidc.clientId | quote }}
+            # The secret is NOT here: it is supplied through the .file indirection
+            # (VIKUNJA_AUTH_OPENID_PROVIDERS_<KEY>_CLIENTSECRET_FILE), which
+            # upstream reads with GetConfigValueFromFile. Verified both ways in a
+            # container: with the env the provider loads, without it the app logs
+            # "required key 'clientsecret' is missing" and drops the provider.
+            # A ConfigMap would be world-readable in the namespace.
+            clientsecret: ""
+            scope: {{ .Values.oidc.scope | quote }}
+    {{- end }}
+
+    files:
+      # Attachments and backgrounds. The directory itself is created by the
+      # data PVC's mount, and fsGroup 1000 makes it writable: verified that
+      # without it the app dies with "Could not init file handler: ... permission
+      # denied" before it ever listens.
+      basepath: /app/vikunja/files

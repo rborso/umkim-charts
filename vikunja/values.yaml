@@ -1,0 +1,81 @@
+namespaceOverride: ""
+
+image: vikunja/vikunja:2.8.0
+imagePullPolicy: IfNotPresent
+timezone: "UTC"
+
+# Extra environment variables for the Vikunja container, in VIKUNJA_* env form.
+# Vikunja's OpenID provider list is NOT settable this way (see oidc below).
+extraEnv: []
+
+# Public URL, e.g. https://vikunja.example.com. UMKIM fills this from the route.
+externalUrl: ""
+# UMKIM sets this so the app reaches its public host and the portal through
+# Traefik, even when the cluster cannot hairpin to the public address.
+hostAliases: []
+
+# Vikunja only mails a user for an existing address; there is no mailer here, so
+# self-registration must stay off or anyone could mint an account.
+allowRegistration: false
+# Local email/password login stays on as the breakglass path: the bootstrap
+# admin is a local account, and OIDC users are separate identities.
+allowLocalLogin: true
+
+persistence:
+  data:
+    size: 2Gi
+    storageClass: ""
+
+postgres:
+  image: docker.io/library/postgres:18.6
+  imagePullPolicy: IfNotPresent
+  database: vikunja
+  username: vikunja
+  # Empty generates a random password on install (stored in the release Secret).
+  password: ""
+  persistence:
+    size: 2Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { memory: 512Mi }
+
+# The bootstrap Job creates the breakglass admin. Vikunja's first user is NOT
+# automatically an admin (CreateUser never sets IsAdmin), so --admin is required
+# rather than decorative.
+#
+# The Vikunja image is FROM scratch: there is no shell, so the Job runs the
+# vikunja binary itself with `user create` / `user set-admin`, not a script.
+bootstrap:
+  enabled: true
+  adminUsername: "vikunja-admin"
+  adminEmail: ""
+  # Empty generates a random password on install (stored in the release Secret).
+  adminPassword: ""
+  hookDeletePolicy: before-hook-creation
+  # The app image is FROM scratch, so anything that needs a shell (the CA bundle
+  # init container) borrows one from here. Same digest-pinned image as the other
+  # charts' helper steps.
+  probeImage: docker.io/library/alpine:3.22.1
+
+# OIDC via Authelia.
+#
+# The provider entry is rendered into a config file rather than passed as
+# VIKUNJA_AUTH_OPENID_PROVIDERS_* env vars. Both work (verified in a container),
+# but the file is the better shape here: the provider map is nested, and a file
+# keeps the client secret out of the environment where it would show up in
+# `kubectl exec -- env` and pod specs. The secret itself arrives through
+# upstream's .file indirection, so it never enters the ConfigMap either.
+oidc:
+  enabled: false
+  issuerUrl: ""
+  clientId: "vikunja"
+  clientSecret: ""
+  providerName: "Authelia"
+  # Provider key used in the callback URL: /api/v1/auth/openid/<key>/callback
+  providerKey: "authelia"
+  scope: "openid email profile"

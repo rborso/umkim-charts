@@ -1,0 +1,81 @@
+{{- if .Values.bootstrap.enabled }}
+# Creates the breakglass local account so a fresh install is not left with only
+# self-registration.
+#
+# Why this is a post-install hook and NOT post-upgrade:
+#
+#   `helm upgrade --install` runs post-install only when the release is new, so
+#   this Job runs once, at install. That is the correct semantic here: the admin
+#   password lives in a `keep`-annotated Secret, so on an upgrade both the Secret
+#   and the database row persist and there is nothing to recreate. It also means
+#   the Job never has to be idempotent, which matters because the Vikunja image
+#   is FROM scratch (no shell) and `user create` simply errors if the account
+#   already exists - there is no `create-if-missing` form to fall back on.
+#
+# What this Job deliberately does NOT do is make that account an instance admin.
+# Vikunja 2.8 gates `user set-admin` and every /admin route behind the paid
+# `admin_panel` licence feature: on a free instance IsFeatureEnabled is false, so
+# the CLI calls log.Fatalf("The admin-panel license feature is not active").
+# `user create` never sets is_admin, and the plan's `--make-admin` flag does not
+# exist. A Job that tried would fail the install, so it does not try. Self-hosted
+# Vikunja is fully usable without an instance admin (projects, tasks, sharing,
+# OIDC all work); the admin panel, audit log and time tracking are Pro features.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-bootstrap
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: vikunja-bootstrap
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: {{ .Values.bootstrap.hookDeletePolicy }}
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vikunja-bootstrap
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: bootstrap
+          # No shell in this image: run the binary's own CLI directly.
+          image: {{ .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command: ["/app/vikunja/vikunja"]
+          args:
+            - user
+            - create
+            - --username
+            - {{ .Values.bootstrap.adminUsername | quote }}
+            - --email
+            - {{ .Values.bootstrap.adminEmail | quote }}
+            - --password
+            - $(VIKUNJA_ADMIN_PASSWORD)
+          env:
+            - name: VIKUNJA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: admin-password
+            # Same config as the server, so the CLI opens the same database.
+            - name: VIKUNJA_SERVICE_ROOTPATH
+              value: /app/vikunja/
+            - name: VIKUNJA_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: postgres-password
+          volumeMounts:
+            - { name: config, mountPath: /etc/vikunja, readOnly: true }
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-config
+{{- end }}

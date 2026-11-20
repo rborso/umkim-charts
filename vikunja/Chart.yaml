@@ -1,0 +1,17 @@
+apiVersion: v2
+name: vikunja
+description: Vikunja task and project manager with PostgreSQL and Authelia OIDC
+type: application
+version: 0.1.0
+appVersion: "2.8.0"
+
+home: https://github.com/rborso/umkim-thin
+sources:
+  - https://github.com/rborso/umkim-thin
+  - https://github.com/go-vikunja/vikunja
+  - https://www.postgresql.org/
+maintainers:
+  - name: Robert Borso
+    url: https://github.com/rborso
+annotations:
+  artifacthub.io/license: Apache-2.0
