@@ -75,9 +75,10 @@ spec:
               # Give self-registered users a role. BookStack's User::attachDefaultRole()
               # does nothing when the `registration-role` setting is unset, which is
               # how a fresh instance ships - so every OIDC user was created with NO
-              # role and could not create anything. Set it explicitly; Editor (the
-              # built-in role id 2) is the sensible default for a single-tenant wiki.
-              php artisan tinker --execute="setting()->put('registration-role', {{ .Values.oidc.registrationRole | default 2 }});" >/dev/null 2>&1 || true
+              # role and could not create anything. Set it explicitly. Admin (1) is
+              # the default for a single-tenant install; it is also the only role
+              # with access-api, so it is what lets a user mint an API token.
+              php artisan tinker --execute="setting()->put('registration-role', {{ .Values.oidc.registrationRole | default 1 }});" >/dev/null 2>&1 || true
 
               case "$rc" in
                 0) echo "bootstrap admin created" ;;

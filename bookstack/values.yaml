@@ -87,8 +87,15 @@ oidc:
   # Single-tenant: do not map directory groups onto BookStack roles. Leaving it
   # off means role drift in the directory cannot lock someone out of the wiki.
   userToGroups: false
-  # Role given to a self-registered (OIDC) user. BookStack ships with
-  # registration-role unset, and its attachDefaultRole() then does nothing - so
-  # an OIDC user gets no role at all and cannot create anything. 2 is the
-  # built-in Editor role; 3 (Viewer) can only read.
-  registrationRole: 2
+  # Role given to a self-registered (OIDC) user: 1 Admin, 2 Editor, 3 Viewer.
+  #
+  # BookStack ships with registration-role UNSET, and its attachDefaultRole()
+  # is a no-op in that case - so without this, every OIDC user is created with
+  # no role at all and cannot create anything (they can log in and read
+  # nothing).
+  #
+  # The default is Admin because this platform is single-tenant: the directory
+  # user is the household owner, and BookStack grants the API-token permission
+  # (access-api) to Admin only. An Editor can write all the content but cannot
+  # mint an API token. Set it to 2 to make new users editors instead.
+  registrationRole: 1
