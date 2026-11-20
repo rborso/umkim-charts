@@ -37,6 +37,12 @@ spec:
       # The app crash-looped on a fresh install: it started before Postgres was
       # accepting connections and exited on "Could not connect to db". It recovers
       # on restart, but a fresh install should not need to crash first.
+      #
+      # Vikunja's image is FROM scratch: no shell, and only the CA bundle it
+      # ships. Both init containers therefore borrow a shell from the same alpine
+      # helper image. The CA one gives the app the platform CA so OIDC discovery
+      # and the token exchange trust the issuer when the lab CA is the only
+      # trust anchor.
       initContainers:
         - name: wait-for-postgres
           image: {{ .Values.bootstrap.probeImage | quote }}
@@ -56,11 +62,6 @@ spec:
               done
               echo "postgres did not answer within 120s" >&2
               exit 1
-      # Vikunja's image is FROM scratch: no shell, and only the CA bundle it
-      # ships. Give it the platform CA so OIDC discovery and the token exchange
-      # trust the issuer when the lab CA is the only trust anchor. The helper
-      # image is needed because the app image cannot run a shell.
-      initContainers:
         - name: ca-bundle
           image: {{ .Values.bootstrap.probeImage | quote }}
           imagePullPolicy: IfNotPresent
