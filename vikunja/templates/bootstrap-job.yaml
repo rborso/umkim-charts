@@ -74,8 +74,16 @@ spec:
                   key: postgres-password
           volumeMounts:
             - { name: config, mountPath: /etc/vikunja, readOnly: true }
+            # The binary initialises the file handler before running any command,
+            # and dies with "Could not init file handler: ... permission denied"
+            # if files.basepath does not exist. The server gets it from the data
+            # PVC; this Job only needs somewhere writable, and the Job must not
+            # touch the app's data volume.
+            - { name: files, mountPath: /app/vikunja/files }
       volumes:
         - name: config
           configMap:
             name: {{ .Release.Name }}-config
+        - name: files
+          emptyDir: {}
 {{- end }}
