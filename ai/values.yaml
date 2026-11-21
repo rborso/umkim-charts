@@ -38,6 +38,35 @@ webui:
   # blank for everyone except an admin. On a single-tenant install the household
   # users are meant to share the gateway, so bypass that filter.
   bypassModelAccessControl: true
+
+  # Per-user API keys, for clients outside the chat UI: a CLI (opencode,
+  # aider), an editor plugin, a phone app.
+  #
+  # The chain is:
+  #   client -> https://<host>/api/v1 -> Open WebUI -> LiteLLM -> llama.cpp
+  #
+  # so the key belongs to the user's Open WebUI account; the gateway keeps its
+  # own master key and never learns about the user. Each user mints, copies and
+  # revokes their own key under Settings -> Account -> API Keys.
+  #
+  # Two switches have to be on, and the second is the one that bites:
+  #   ENABLE_API_KEYS                       - the key API exists at all
+  #   USER_PERMISSIONS_FEATURES_API_KEYS    - a *non-admin* may create a key
+  # With only the first, the admin works and every ordinary user gets 403, which
+  # looks like a broken key form rather than a permission.
+  #
+  # The permission is also persisted in Open WebUI's database, where it *wins*
+  # over the environment on an install that already booted - so setting the env
+  # var alone does nothing on an upgrade. The bootstrap Job therefore applies it
+  # through the admin API, which is what the UI's checkbox does.
+  #
+  # Note: /api/v1 is Open WebUI's OpenAI-compatibility surface and is marked
+  # experimental upstream. It covers chat completions and model listing; it is
+  # not a promise that every OpenAI endpoint behaves identically. For a stable
+  # /v1 with per-key budgets, keys have to come from LiteLLM instead (which
+  # needs a database).
+  apiKeys:
+    enabled: false
   persistence:
     size: 2Gi
     storageClass: ""

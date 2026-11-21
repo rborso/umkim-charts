@@ -1,0 +1,126 @@
+{{- if and .Values.webui.enabled .Values.webui.apiKeys.enabled }}
+{{- /*
+Per-user API keys need one thing the environment cannot deliver reliably: the
+`features.api_keys` user permission.
+
+Setting USER_PERMISSIONS_FEATURES_API_KEYS=true seeds it on a *fresh* install, but
+Open WebUI persists `user.permissions` in its own database on first boot, and the
+stored value wins over the environment afterwards. On an existing install the env
+var is therefore ignored and every non-admin user gets 403 when they try to make a
+key - which reads as a broken form, not a permission.
+
+So the switch is applied through the admin API, which is exactly what the
+Administration -> Users -> Permissions checkbox does:
+
+  GET  /api/v1/users/default/permissions   -> the tree
+  POST /api/v1/users/default/permissions   -> set features.api_keys = true
+
+Idempotent: it reads, only writes when the flag is off, and exits 0 either way.
+*/ -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-webui-apikeys
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: ai-bootstrap
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ai-bootstrap
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      initContainers:
+        - name: wait-for-webui
+          image: docker.io/library/alpine:3.22.1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              i=0
+              while [ "$i" -lt 90 ]; do
+                if nc -z {{ .Release.Name }}-webui 8080 2>/dev/null; then exit 0; fi
+                i=$((i+1)); sleep 2
+              done
+              echo "open webui did not answer within 180s" >&2
+              exit 1
+      containers:
+        - name: enable-api-keys
+          # Open WebUI's own image: it has python3 and the CA bundle the pod
+          # already trusts, and no shell tooling beyond that is needed.
+          image: {{ .Values.webui.image | quote }}
+          imagePullPolicy: {{ .Values.webui.imagePullPolicy }}
+          command: ["python3", "-c"]
+          args:
+            - |
+              import json, os, ssl, sys, time, urllib.request, urllib.error
+
+              BASE = "http://{{ .Release.Name }}-webui:8080"
+              EMAIL = {{ .Values.webui.admin.email | quote }}
+              PASSWORD = os.environ["WEBUI_ADMIN_PASSWORD"]
+
+              # Open WebUI answers 500/503 while it finishes its first-boot work
+              # (migrations, model discovery), so retry rather than fail on the
+              # first attempt.
+              def call(path, data=None, token=None, method=None):
+                  body = json.dumps(data).encode() if data is not None else None
+                  req = urllib.request.Request(BASE + path, data=body, method=method)
+                  req.add_header("Content-Type", "application/json")
+                  if token:
+                      req.add_header("Authorization", "Bearer " + token)
+                  with urllib.request.urlopen(req, timeout=30, context=ssl.create_default_context()) as r:
+                      return r.status, json.loads(r.read() or b"{}")
+
+              token = ""
+              for attempt in range(30):
+                  try:
+                      status, body = call("/api/v1/auths/signin",
+                                          {"email": EMAIL, "password": PASSWORD})
+                      if status == 200 and body.get("token"):
+                          token = body["token"]
+                          break
+                      print("signin -> %s (attempt %d)" % (status, attempt + 1))
+                  except Exception as exc:
+                      print("signin not ready (attempt %d): %s" % (attempt + 1, exc))
+                  time.sleep(10)
+
+              if not token:
+                  print("could not sign in as the seeded admin; is webui.admin.email set?",
+                        file=sys.stderr)
+                  sys.exit(1)
+
+              status, perms = call("/api/v1/users/default/permissions", token=token)
+              features = perms.setdefault("features", {})
+              if features.get("api_keys") is True:
+                  print("features.api_keys is already enabled; nothing to do")
+                  sys.exit(0)
+
+              features["api_keys"] = True
+              status, _ = call("/api/v1/users/default/permissions", perms,
+                               token=token, method="POST")
+              if status != 200:
+                  print("permission update -> %s" % status, file=sys.stderr)
+                  sys.exit(1)
+              print("enabled per-user API keys (features.api_keys)")
+          env:
+            - name: WEBUI_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: admin-password
+{{- end }}

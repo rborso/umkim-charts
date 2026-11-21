@@ -106,6 +106,20 @@ spec:
               value: "true"
             - name: ENABLE_SIGNUP
               value: {{ .Values.webui.allowSignup | quote }}
+            {{- if .Values.webui.apiKeys.enabled }}
+            # Per-user API keys for CLI clients: client -> /api/v1 -> this app ->
+            # LiteLLM -> backend. Both switches are needed; the second is what
+            # lets a NON-ADMIN mint a key (the admin works without it, which is
+            # how the 403 on ordinary users gets missed).
+            #
+            # The permission is also stored in this app's database, where it wins
+            # over the environment on an install that already booted, so the
+            # post-install Job applies it through the admin API as well.
+            - name: ENABLE_API_KEYS
+              value: "true"
+            - name: USER_PERMISSIONS_FEATURES_API_KEYS
+              value: "true"
+            {{- end }}
             # Without this, a non-admin user gets an empty model list even though
             # the gateway answered: Open WebUI filters gateway models through its
             # own (empty) access-control table.
