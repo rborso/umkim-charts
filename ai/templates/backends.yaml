@@ -124,16 +124,41 @@ spec:
             - --threads
             - {{ $b.threads | quote }}
             {{- end }}
+            {{- /* Sampling defaults for requests that do not carry their own.
+                   llama.cpp takes these as server flags; a client can still
+                   override any of them per request, which is what the OpenAI
+                   schema allows. A value of 0 disables top-k/min-p, so they are
+                   rendered whenever the key is present. */}}
+            {{- with $b.sampling }}
+            {{- if hasKey . "temperature" }}
+            - --temp
+            - {{ .temperature | quote }}
+            {{- end }}
+            {{- if hasKey . "topP" }}
+            - --top-p
+            - {{ .topP | quote }}
+            {{- end }}
+            {{- if hasKey . "topK" }}
+            - --top-k
+            - {{ .topK | quote }}
+            {{- end }}
+            {{- if hasKey . "minP" }}
+            - --min-p
+            - {{ .minP | quote }}
+            {{- end }}
+            {{- end }}
             {{- with $b.preload }}
             # Eager-load one model, so the first user request does not pay for it.
             - --alias
             - {{ . | quote }}
             {{- end }}
             {{- if $isGPU }}
-            # Offload everything. On a CPU-only node the layer count is 0, which
-            # is why the default does not pass this at all.
+            # How much of the model goes to the card. 999 means "all of it"; a
+            # lower number leaves layers on the CPU, which is how a model larger
+            # than the VRAM is made to fit. On a CPU-only node none of this is
+            # passed at all.
             - --n-gpu-layers
-            - "999"
+            - {{ $b.gpuLayers | default 999 | quote }}
             - --split-mode
             - {{ $gpu.splitMode | default "layer" | quote }}
             {{- with $gpu.tensorSplit }}

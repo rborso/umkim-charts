@@ -154,6 +154,25 @@ backends:
     parallel: 1
     # 0 lets llama.cpp decide from the cgroup limit.
     threads: 0
+    # How many model layers go to the GPU. llama.cpp's default here is 999
+    # ("offload everything"), which is right for a card that fits the model and
+    # wrong for one that does not: the load then fails or spills into system
+    # memory with no explanation. Only used when gpu.enabled is set.
+    gpuLayers: 999
+    # Sampling defaults for requests that do not set their own. These are the
+    # model's job to answer within, so they belong here rather than in the UI
+    # per conversation.
+    sampling:
+      # 0.8 is llama.cpp's own default. Lower is more repeatable, higher is more
+      # varied; above about 1.3 small models start inventing facts.
+      temperature: 0.8
+      # Nucleus sampling: keep the smallest set of tokens whose probability sums
+      # to this. 1.0 disables it.
+      topP: 0.95
+      # Keep only this many candidate tokens per step. 0 disables.
+      topK: 40
+      # Drop tokens below this fraction of the most likely one. 0.0 disables.
+      minP: 0.05
     persistence:
       size: 4Gi
       storageClass: ""
