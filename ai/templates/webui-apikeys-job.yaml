@@ -1,21 +1,18 @@
 {{- if and .Values.webui.enabled .Values.webui.apiKeys.enabled }}
 {{- /*
-Per-user API keys need one thing the environment cannot deliver reliably: the
-`features.api_keys` user permission.
+Per-user API keys need one thing the environment cannot deliver on an install that
+has already booted: `user.permissions.features.api_keys`, which lets a NON-ADMIN
+mint a key. The admin works without it, which is how the 403 on ordinary users
+gets missed.
 
-Setting USER_PERMISSIONS_FEATURES_API_KEYS=true seeds it on a *fresh* install, but
-Open WebUI persists `user.permissions` in its own database on first boot, and the
-stored value wins over the environment afterwards. On an existing install the env
-var is therefore ignored and every non-admin user gets 403 when they try to make a
-key - which reads as a broken form, not a permission.
+This Job applies it through the admin API - the same call the Permissions
+checkbox makes. The *other* half (`auth.enable_api_keys`, the switch the create
+route checks first) is a config row that wins over the environment for ever once
+stored, so it is cleared by an init container on the webui pod itself, before the
+app starts. See templates/webui.yaml.
 
-So the switch is applied through the admin API, which is exactly what the
-Administration -> Users -> Permissions checkbox does:
-
-  GET  /api/v1/users/default/permissions   -> the tree
-  POST /api/v1/users/default/permissions   -> set features.api_keys = true
-
-Idempotent: it reads, only writes when the flag is off, and exits 0 either way.
+Idempotent: reads the permission tree, writes only when the flag is off, exits 0
+either way.
 */ -}}
 apiVersion: batch/v1
 kind: Job
@@ -61,29 +58,27 @@ spec:
               exit 1
       containers:
         - name: enable-api-keys
-          # Open WebUI's own image: it has python3 and the CA bundle the pod
-          # already trusts, and no shell tooling beyond that is needed.
+          # Open WebUI's own image: python3 plus its sqlite module, and it can
+          # read the database it owns.
           image: {{ .Values.webui.image | quote }}
           imagePullPolicy: {{ .Values.webui.imagePullPolicy }}
           command: ["python3", "-c"]
           args:
             - |
-              import json, os, ssl, sys, time, urllib.request, urllib.error
+              import json, os, ssl, sys, time, urllib.request
 
               BASE = "http://{{ .Release.Name }}-webui:8080"
               EMAIL = {{ .Values.webui.admin.email | quote }}
               PASSWORD = os.environ["WEBUI_ADMIN_PASSWORD"]
 
-              # Open WebUI answers 500/503 while it finishes its first-boot work
-              # (migrations, model discovery), so retry rather than fail on the
-              # first attempt.
               def call(path, data=None, token=None, method=None):
                   body = json.dumps(data).encode() if data is not None else None
                   req = urllib.request.Request(BASE + path, data=body, method=method)
                   req.add_header("Content-Type", "application/json")
                   if token:
                       req.add_header("Authorization", "Bearer " + token)
-                  with urllib.request.urlopen(req, timeout=30, context=ssl.create_default_context()) as r:
+                  with urllib.request.urlopen(req, timeout=30,
+                                              context=ssl.create_default_context()) as r:
                       return r.status, json.loads(r.read() or b"{}")
 
               token = ""

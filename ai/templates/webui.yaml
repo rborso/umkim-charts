@@ -54,6 +54,42 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
+        {{- if .Values.webui.apiKeys.enabled }}
+        # The API-key on/off switch is a config ROW, seeded from the environment
+        # at first boot. A stored row wins over the env var for ever after, and
+        # nothing in the app writes this key - so an install that booted before
+        # the option existed keeps `false` no matter what the env says. Run before
+        # the app so it reads the corrected state on this very start.
+        #
+        # This runs in the app's own pod: the config volume is ReadWriteOnce, and
+        # a separate Job mounting it would never schedule (the failure that bit
+        # the BookStack and Vikunja bootstraps).
+        - name: api-keys-config
+          image: {{ .Values.webui.image | quote }}
+          imagePullPolicy: {{ .Values.webui.imagePullPolicy }}
+          command: ["python3", "-c"]
+          args:
+            - |
+              import json, sqlite3, sys
+              DB = "/app/backend/data/webui.db"
+              try:
+                  con = sqlite3.connect(DB, timeout=30)
+                  row = con.execute(
+                      "select value from config where key = 'auth.enable_api_keys'"
+                  ).fetchone()
+                  if row and json.loads(row[0]) is False:
+                      con.execute("delete from config where key = 'auth.enable_api_keys'")
+                      con.commit()
+                      print("removed the stale auth.enable_api_keys=false row")
+                  else:
+                      print("auth.enable_api_keys: no stale false row")
+                  con.close()
+              except Exception as exc:
+                  print("api-keys config check failed: %s" % exc, file=sys.stderr)
+                  sys.exit(1)
+          volumeMounts:
+            - { name: data, mountPath: /app/backend/data }
+        {{- end }}
         - name: ca-bundle
           image: docker.io/library/alpine:3.22.1
           imagePullPolicy: IfNotPresent
