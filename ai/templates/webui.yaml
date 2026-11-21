@@ -70,10 +70,24 @@ spec:
           command: ["python3", "-c"]
           args:
             - |
-              import json, sqlite3, sys
+              import json, os, sqlite3, sys
               DB = "/app/backend/data/webui.db"
+              # A FRESH install has no database yet: the app creates and migrates
+              # it on first boot, which is after this runs. Treat that as "nothing
+              # to clear" - the env var seeds the value correctly on a first boot,
+              # so there is no stale row to remove. Failing here would block the
+              # pod on every new install.
+              if not os.path.exists(DB):
+                  print("no database yet (fresh install); the env seeds api keys")
+                  sys.exit(0)
               try:
                   con = sqlite3.connect(DB, timeout=30)
+                  tables = {r[0] for r in con.execute(
+                      "select name from sqlite_master where type = 'table'")}
+                  if "config" not in tables:
+                      print("config table not created yet (fresh install); nothing to clear")
+                      con.close()
+                      sys.exit(0)
                   row = con.execute(
                       "select value from config where key = 'auth.enable_api_keys'"
                   ).fetchone()
